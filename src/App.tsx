@@ -82,6 +82,18 @@ export default function App() {
           import
         </button>
         <button
+          onClick={() => {
+            load((text) =>
+              editor.action.setProgram({
+                ...editor.program,
+                ...JSON.parse(text),
+              })
+            );
+          }}
+        >
+          import overwrite
+        </button>
+        <button
           onClick={() =>
             download(
               JSON.stringify(editor.program, null, 2),
