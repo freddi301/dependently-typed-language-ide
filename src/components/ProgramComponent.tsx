@@ -10,31 +10,26 @@ export function ProgramComponent({ program }: { program: Program }) {
       {Object.entries(program).map(([k, { type, value }]) => {
         return (
           <React.Fragment key={k}>
-            <div>
-              {k}
-              {type && (
-                <>
-                  {" "}
-                  :{" "}
-                  <TermComponent
-                    term={type}
-                    parens={false}
-                    path={[k, "type"]}
-                  />
-                </>
-              )}
-              {value && (
-                <>
-                  {" "}
-                  ={" "}
-                  <TermComponent
-                    term={value}
-                    parens={false}
-                    path={[k, "value"]}
-                  />
-                </>
-              )}
-            </div>
+            {k}
+            {type && (
+              <>
+                {" "}
+                :{" "}
+                <TermComponent term={type} parens={false} path={[k, "type"]} />
+              </>
+            )}
+            {value && (
+              <>
+                {" "}
+                ={" "}
+                <TermComponent
+                  term={value}
+                  parens={false}
+                  path={[k, "value"]}
+                />
+              </>
+            )}
+            <br />
           </React.Fragment>
         );
       })}
@@ -94,6 +89,9 @@ function Adder() {
           });
           editor.action.setCursor([text, "value"]);
         }
+      }}
+      onFocus={() => {
+        editor.action.setCursor([]);
       }}
     />
   );
