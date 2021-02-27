@@ -103,6 +103,16 @@ export function fromProgram(program: Program) {
       if (v.type) {
         checkTerm(v.type);
       }
+      if (v.value && v.type) {
+        const annotatedType = getValue(v.type);
+        const valueType = getType(v.value);
+        if (valueType && annotatedType && !isSame(valueType, annotatedType)) {
+          mismatchedArgument.set(v.value, {
+            expected: annotatedType,
+            detected: valueType,
+          });
+        }
+      }
     }
     return { mismatchedArgument, isNotAFunction };
   }
