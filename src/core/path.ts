@@ -77,6 +77,7 @@ function setByRelativePath(
           return from
             ? {
                 type: "arrow",
+                head: term.head,
                 from,
                 to: term.to,
               }
@@ -87,6 +88,7 @@ function setByRelativePath(
           return to
             ? {
                 type: "arrow",
+                head: term.head,
                 from: term.from,
                 to,
               }

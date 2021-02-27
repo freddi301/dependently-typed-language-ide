@@ -155,6 +155,25 @@ export function ReferenceComponent({
               }
             } else if (event.key === "Enter") {
               editor.action.setCursor([]);
+            } else if (event.key === ":") {
+              const program = setByPath(
+                path,
+                {
+                  type: "arrow",
+                  head: term.reference,
+                  from: { type: "reference", reference: "" },
+                  to: { type: "reference", reference: "" },
+                },
+                editor.program
+              );
+              if (program) {
+                editor.action.setProgram(program);
+                editor.action.setCursor([...path, "from"]);
+              }
+            } else if (event.key === "ArrowRight") {
+              if (parent?.type === "arrow" && leafPath === "from") {
+                editor.action.setCursor([...parentPath, "to"]);
+              }
             }
           }}
           onClick={() => {
