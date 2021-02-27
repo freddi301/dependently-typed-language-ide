@@ -19,5 +19,61 @@
       "reference": "boolean"
     },
     "value": null
+  },
+  "not": {
+    "type": {
+      "type": "arrow",
+      "from": {
+        "type": "reference",
+        "reference": "boolean"
+      },
+      "to": {
+        "type": "reference",
+        "reference": "boolean"
+      }
+    },
+    "value": null
+  },
+  "and": {
+    "type": {
+      "type": "arrow",
+      "from": {
+        "type": "reference",
+        "reference": "boolean"
+      },
+      "to": {
+        "type": "arrow",
+        "from": {
+          "type": "reference",
+          "reference": "boolean"
+        },
+        "to": {
+          "type": "reference",
+          "reference": "boolean"
+        }
+      }
+    },
+    "value": null
+  },
+  "or": {
+    "type": {
+      "type": "arrow",
+      "from": {
+        "type": "reference",
+        "reference": "boolean"
+      },
+      "to": {
+        "type": "arrow",
+        "from": {
+          "type": "reference",
+          "reference": "boolean"
+        },
+        "to": {
+          "type": "reference",
+          "reference": "boolean"
+        }
+      }
+    },
+    "value": null
   }
 }

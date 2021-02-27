@@ -46,8 +46,15 @@ export function ProgramComponent({ program }: { program: Program }) {
 function Adder() {
   const editor = React.useContext(EditorContext);
   const [text, setText] = React.useState("");
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  React.useLayoutEffect(() => {
+    if (editor.state.cursor.length === 0) {
+      inputRef.current?.focus();
+    }
+  }, [editor.state.cursor]);
   return (
     <input
+      ref={inputRef}
       style={{ ...styleInputSeamless, width: "100%" }}
       value={text}
       onChange={(event) => {

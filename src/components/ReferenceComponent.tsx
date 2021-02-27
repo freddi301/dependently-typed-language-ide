@@ -105,6 +105,56 @@ export function ReferenceComponent({
                   editor.action.setCursor(parentPath);
                 }
               }
+            } else if (event.key === "-") {
+              event.preventDefault();
+              if (parent?.type === "arrow" && leafPath === "from") {
+                const program = setByPath(
+                  parentPath,
+                  {
+                    type: "arrow",
+                    from: term,
+                    to: {
+                      type: "arrow",
+                      from: { type: "reference", reference: "" },
+                      to: parent.to,
+                    },
+                  },
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor([...parentPath, "to", "from"]);
+                }
+              } else {
+                const program = setByPath(
+                  path,
+                  {
+                    type: "arrow",
+                    from: term,
+                    to: { type: "reference", reference: "" },
+                  },
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor([...path, "to"]);
+                }
+              }
+            } else if (event.key === "Backspace" && term.reference === "") {
+              if (parent?.type === "application" && leafPath === "right") {
+                event.preventDefault();
+                const program = setByPath(
+                  parentPath,
+                  parent.left,
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor(parentPath);
+                }
+              }
+            } else if (event.key === "Enter") {
+              editor.action.setCursor([]);
             }
           }}
           onClick={() => {
