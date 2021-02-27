@@ -1,0 +1,23 @@
+{
+  "boolean": {
+    "type": {
+      "type": "reference",
+      "reference": "type"
+    },
+    "value": null
+  },
+  "true": {
+    "type": {
+      "type": "reference",
+      "reference": "boolean"
+    },
+    "value": null
+  },
+  "false": {
+    "type": {
+      "type": "reference",
+      "reference": "boolean"
+    },
+    "value": null
+  }
+}
