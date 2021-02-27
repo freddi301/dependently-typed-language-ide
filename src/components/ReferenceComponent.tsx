@@ -18,13 +18,15 @@ export function ReferenceComponent({
   path: TermPath;
 }) {
   const editor = React.useContext(EditorContext);
-  const { hasError } = React.useContext(ProgramContext);
+  const { hasError, getType } = React.useContext(ProgramContext);
   const [hasMouseOver, setHasMouseOver] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const hasCursor = isSamePath(path, editor.state.cursor);
   React.useLayoutEffect(() => {
     if (hasCursor) inputRef.current?.focus();
   }, [hasCursor]);
+  const type = getType(term);
+  const hasType = type !== null;
   return (
     <Hoverable
       hasMouseOver={hasMouseOver}
@@ -34,10 +36,16 @@ export function ReferenceComponent({
           style={{
             ...styleInputSeamless,
             width: `${term.reference.length || 1}ch`,
-            backgroundColor: hasMouseOver
-              ? colors.backgroundDark
-              : styleInputSeamless.backgroundColor,
-            borderBottom: hasError(term) ? `2px solid ${colors.red}` : "none",
+            backgroundColor:
+              hasMouseOver || hasCursor
+                ? colors.backgroundDark
+                : styleInputSeamless.backgroundColor,
+            borderBottom: hasError(term)
+              ? `2px solid ${colors.red}`
+              : !hasType
+              ? `2px solid ${colors.gray}`
+              : "2px solid transparent",
+            marginBottom: "-2px",
           }}
           onMouseOver={() => setHasMouseOver(true)}
           onMouseLeave={() => setHasMouseOver(false)}
@@ -104,6 +112,32 @@ export function ReferenceComponent({
                   editor.action.setProgram(program);
                   editor.action.setCursor(parentPath);
                 }
+              } else if (parent?.type === "arrow" && leafPath === "to") {
+                event.preventDefault();
+                const program = setByPath(
+                  parentPath,
+                  parent.from,
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor(parentPath);
+                }
+              } else if (parent?.type === "arrow" && leafPath === "from") {
+                event.preventDefault();
+                const program = setByPath(
+                  parentPath,
+                  parent.to,
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor(parentPath);
+                }
+              } else if (path.length === 2) {
+                event.preventDefault();
+                const { [path[0]]: removed, ...program } = editor.program;
+                editor.action.setProgram(program);
               }
             } else if (event.key === "-") {
               event.preventDefault();
@@ -140,19 +174,6 @@ export function ReferenceComponent({
                   editor.action.setCursor([...path, "to"]);
                 }
               }
-            } else if (event.key === "Backspace" && term.reference === "") {
-              if (parent?.type === "application" && leafPath === "right") {
-                event.preventDefault();
-                const program = setByPath(
-                  parentPath,
-                  parent.left,
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor(parentPath);
-                }
-              }
             } else if (event.key === "Enter") {
               editor.action.setCursor([]);
             } else if (event.key === ":") {
@@ -171,8 +192,41 @@ export function ReferenceComponent({
                 editor.action.setCursor([...path, "from"]);
               }
             } else if (event.key === "ArrowRight") {
-              if (parent?.type === "arrow" && leafPath === "from") {
+              if (
+                parent?.type === "arrow" &&
+                leafPath === "from" &&
+                event.currentTarget.selectionStart ===
+                  event.currentTarget.selectionEnd &&
+                event.currentTarget.selectionStart === term.reference.length
+              ) {
+                event.preventDefault();
                 editor.action.setCursor([...parentPath, "to"]);
+              } else if (
+                parent?.type === "application" &&
+                leafPath === "left" &&
+                event.currentTarget.selectionStart ===
+                  event.currentTarget.selectionEnd &&
+                event.currentTarget.selectionStart === term.reference.length
+              ) {
+                event.preventDefault();
+                editor.action.setCursor([...parentPath, "right"]);
+              }
+            } else if (event.key === "(") {
+              if (parent?.type === "application" && leafPath === "right") {
+                event.preventDefault();
+                const program = setByPath(
+                  path,
+                  {
+                    type: "application",
+                    left: { type: "reference", reference: "" },
+                    right: { type: "reference", reference: "" },
+                  },
+                  editor.program
+                );
+                if (program) {
+                  editor.action.setProgram(program);
+                  editor.action.setCursor([...parentPath, "right", "left"]);
+                }
               }
             }
           }}
