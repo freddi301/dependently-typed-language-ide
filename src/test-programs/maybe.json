@@ -1,0 +1,67 @@
+{
+  "maybe": {
+    "type": {
+      "type": "arrow",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "reference",
+        "reference": "type"
+      }
+    },
+    "value": null
+  },
+  "nothing": {
+    "type": {
+      "type": "arrow",
+      "head": "t",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "application",
+        "left": {
+          "type": "reference",
+          "reference": "maybe"
+        },
+        "right": {
+          "type": "reference",
+          "reference": "t"
+        }
+      }
+    },
+    "value": null
+  },
+  "just": {
+    "type": {
+      "type": "arrow",
+      "head": "t",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "arrow",
+        "from": {
+          "type": "reference",
+          "reference": "t"
+        },
+        "to": {
+          "type": "application",
+          "left": {
+            "type": "reference",
+            "reference": "maybe"
+          },
+          "right": {
+            "type": "reference",
+            "reference": "t"
+          }
+        }
+      }
+    },
+    "value": null
+  }
+}

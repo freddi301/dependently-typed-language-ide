@@ -1,0 +1,100 @@
+{
+  "same": {
+    "type": {
+      "type": "arrow",
+      "head": "t",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "arrow",
+        "head": "x",
+        "from": {
+          "type": "reference",
+          "reference": "t"
+        },
+        "to": {
+          "type": "arrow",
+          "head": "y",
+          "from": {
+            "type": "reference",
+            "reference": "t"
+          },
+          "to": {
+            "type": "reference",
+            "reference": "type"
+          }
+        }
+      }
+    },
+    "value": null
+  },
+  "reflection": {
+    "type": {
+      "type": "arrow",
+      "head": "t",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "arrow",
+        "head": "v",
+        "from": {
+          "type": "reference",
+          "reference": "t"
+        },
+        "to": {
+          "type": "application",
+          "left": {
+            "type": "application",
+            "left": {
+              "type": "application",
+              "left": {
+                "type": "reference",
+                "reference": "same"
+              },
+              "right": {
+                "type": "reference",
+                "reference": "t"
+              }
+            },
+            "right": {
+              "type": "reference",
+              "reference": "v"
+            }
+          },
+          "right": {
+            "type": "reference",
+            "reference": "v"
+          }
+        }
+      }
+    },
+    "value": null
+  },
+  "the": {
+    "type": {
+      "type": "arrow",
+      "head": "t",
+      "from": {
+        "type": "reference",
+        "reference": "type"
+      },
+      "to": {
+        "type": "arrow",
+        "head": "v",
+        "from": {
+          "type": "reference",
+          "reference": "t"
+        },
+        "to": {
+          "type": "reference",
+          "reference": "t"
+        }
+      }
+    },
+    "value": null
+  }
+}
