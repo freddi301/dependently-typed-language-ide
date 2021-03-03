@@ -1,79 +1,170 @@
 {
-  "boolean": {
-    "type": {
-      "type": "reference",
-      "reference": "type"
-    },
-    "value": null
+  "type": "lambda",
+  "head": "boolean",
+  "from": {
+    "type": "reference",
+    "reference": "type"
   },
-  "true": {
-    "type": {
-      "type": "reference",
-      "reference": "boolean"
-    },
-    "value": null
-  },
-  "false": {
-    "type": {
+  "body": {
+    "type": "lambda",
+    "head": "true",
+    "from": {
       "type": "reference",
       "reference": "boolean"
     },
-    "value": null
-  },
-  "not": {
-    "type": {
-      "type": "arrow",
+    "body": {
+      "type": "lambda",
+      "head": "false",
       "from": {
         "type": "reference",
         "reference": "boolean"
       },
-      "to": {
-        "type": "reference",
-        "reference": "boolean"
-      }
-    },
-    "value": null
-  },
-  "and": {
-    "type": {
-      "type": "arrow",
-      "from": {
-        "type": "reference",
-        "reference": "boolean"
-      },
-      "to": {
-        "type": "arrow",
+      "body": {
+        "type": "lambda",
+        "head": "not",
         "from": {
-          "type": "reference",
-          "reference": "boolean"
+          "type": "pi",
+          "head": "x",
+          "from": {
+            "type": "reference",
+            "reference": "boolean"
+          },
+          "to": {
+            "type": "reference",
+            "reference": "boolean"
+          }
         },
-        "to": {
-          "type": "reference",
-          "reference": "boolean"
+        "body": {
+          "type": "lambda",
+          "head": "and",
+          "from": {
+            "type": "pi",
+            "head": "x",
+            "from": {
+              "type": "reference",
+              "reference": "boolean"
+            },
+            "to": {
+              "type": "pi",
+              "head": "y",
+              "from": {
+                "type": "reference",
+                "reference": "boolean"
+              },
+              "to": {
+                "type": "reference",
+                "reference": "boolean"
+              }
+            }
+          },
+          "body": {
+            "type": "lambda",
+            "head": "or",
+            "from": {
+              "type": "pi",
+              "head": "x",
+              "from": {
+                "type": "reference",
+                "reference": "boolean"
+              },
+              "to": {
+                "type": "pi",
+                "head": "y",
+                "from": {
+                  "type": "reference",
+                  "reference": "boolean"
+                },
+                "to": {
+                  "type": "reference",
+                  "reference": "boolean"
+                }
+              }
+            },
+            "body": {
+              "type": "application",
+              "left": {
+                "type": "lambda",
+                "head": "nand",
+                "from": {
+                  "type": "pi",
+                  "head": "x",
+                  "from": {
+                    "type": "reference",
+                    "reference": "boolean"
+                  },
+                  "to": {
+                    "type": "pi",
+                    "head": "y",
+                    "from": {
+                      "type": "reference",
+                      "reference": "boolean"
+                    },
+                    "to": {
+                      "type": "reference",
+                      "reference": "boolean"
+                    }
+                  }
+                },
+                "body": {
+                  "type": "application",
+                  "left": {
+                    "type": "lambda",
+                    "head": "nor",
+                    "from": {
+                      "type": "lambda",
+                      "head": "nor",
+                      "from": {
+                        "type": "pi",
+                        "head": "x",
+                        "from": {
+                          "type": "reference",
+                          "reference": "boolean"
+                        },
+                        "to": {
+                          "type": "pi",
+                          "head": "y",
+                          "from": {
+                            "type": "reference",
+                            "reference": "boolean"
+                          },
+                          "to": {
+                            "type": "reference",
+                            "reference": "boolean"
+                          }
+                        }
+                      },
+                      "body": {
+                        "type": "reference",
+                        "reference": "?"
+                      }
+                    },
+                    "body": {
+                      "type": "reference",
+                      "reference": "?"
+                    }
+                  },
+                  "right": {
+                    "type": "reference",
+                    "reference": "?"
+                  }
+                }
+              },
+              "right": {
+                "type": "lambda",
+                "head": "?",
+                "from": {
+                  "type": "reference",
+                  "reference": "?"
+                },
+                "body": {
+                  "type": "reference",
+                  "reference": "?"
+                }
+              }
+            }
+          }
         }
       }
-    },
-    "value": null
-  },
-  "or": {
-    "type": {
-      "type": "arrow",
-      "from": {
-        "type": "reference",
-        "reference": "boolean"
-      },
-      "to": {
-        "type": "arrow",
-        "from": {
-          "type": "reference",
-          "reference": "boolean"
-        },
-        "to": {
-          "type": "reference",
-          "reference": "boolean"
-        }
-      }
-    },
-    "value": null
+    }
   }
 }

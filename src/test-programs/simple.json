@@ -1,0 +1,20 @@
+{
+  "type": "lambda",
+  "head": "boolean",
+  "from": {
+    "type": "reference",
+    "reference": "type"
+  },
+  "body": {
+    "type": "lambda",
+    "head": "true",
+    "from": {
+      "type": "reference",
+      "reference": "boolean"
+    },
+    "body": {
+      "type": "reference",
+      "reference": "true"
+    }
+  }
+}

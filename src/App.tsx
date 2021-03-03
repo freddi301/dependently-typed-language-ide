@@ -1,11 +1,263 @@
-import * as React from "react";
-import { TermPath } from "./core/path";
-import { fromProgram, Program } from "./core/program";
-import { program as defaultProgram } from "./test-programs/a";
-import { ProgramComponent } from "./components/ProgramComponent";
+import { createContext, useState } from "react";
+import { TermComponent } from "./components/TermComponent";
+import { getByRelativePath, setByRelativePath, TermPath } from "./core/path";
+import { getType, getValue, Term } from "./core/program";
+import { copyToClipboard, download, load } from "./serialization/browser";
 
-export type ProgramContext = ReturnType<typeof fromProgram>;
-export const ProgramContext = React.createContext<ProgramContext>(null as any);
+type EditorState = { source: Term; cursor: TermPath; clipBoard: Term | null };
+export const EditorContext = createContext<{
+  state: EditorState;
+  setState(state: EditorState): void;
+}>(null as any);
+
+export default function App() {
+  const [state, setState] = useState<EditorState>({
+    source: {
+      type: "reference",
+      reference: "main",
+      t: undefined,
+    },
+    cursor: [],
+    clipBoard: null,
+  });
+  const { source, cursor } = state;
+  const value = getValue(state.source);
+  const type = value ? getType(value) : null;
+  const termUnderCursor = getByRelativePath(state.cursor, state.source);
+  return (
+    <EditorContext.Provider value={{ state, setState }}>
+      <div
+        style={{
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: colors.background,
+          color: colors.white,
+          whiteSpace: "pre",
+          display: "grid",
+          gridTemplateColumns: "1fr 400px",
+          gridTemplateRows: "1fr 1fr",
+        }}
+      >
+        <div
+          style={{
+            gridColumn: "1",
+            gridRow: "1",
+            position: "relative",
+            overflow: "scroll",
+          }}
+        >
+          <div style={{ position: "absolute" }}>
+            <TermComponent term={state.source} path={[]} parens={false} />
+          </div>
+        </div>
+        <div
+          style={{
+            gridColumn: "1",
+            gridRow: "2",
+            position: "relative",
+            overflow: "scroll",
+          }}
+        >
+          <div style={{ position: "absolute" }}>
+            {value && (
+              <div>
+                = <TermComponent term={value} path={["*"]} parens={false} />
+              </div>
+            )}
+            {type && (
+              <div>
+                : <TermComponent term={type} path={["*"]} parens={false} />
+              </div>
+            )}
+          </div>
+        </div>
+        <div style={{ gridColumn: "2", gridRow: "1" }}>
+          <div>
+            <button
+              onClick={() => {
+                if (termUnderCursor) {
+                  download(
+                    JSON.stringify(termUnderCursor, null, 2),
+                    "application/json"
+                  );
+                }
+              }}
+            >
+              export
+            </button>
+            <button
+              onClick={() => {
+                if (termUnderCursor) {
+                  copyToClipboard(JSON.stringify(termUnderCursor, null, 2));
+                }
+              }}
+            >
+              copy as json
+            </button>
+            <button
+              onClick={() => {
+                if (termUnderCursor) {
+                  load((text) => {
+                    setState({
+                      ...state,
+                      source:
+                        setByRelativePath(cursor, JSON.parse(text), source) ??
+                        source,
+                    });
+                  });
+                }
+              }}
+            >
+              import
+            </button>
+          </div>
+          <div>
+            <button
+              disabled={termUnderCursor === null}
+              onClick={() => {
+                setState({
+                  ...state,
+                  source:
+                    setByRelativePath(
+                      cursor,
+                      { type: "reference", reference: "?", t: undefined },
+                      source
+                    ) ?? source,
+                });
+              }}
+            >
+              insert reference
+            </button>
+          </div>
+          <div>
+            <button
+              disabled={termUnderCursor === null}
+              onClick={() => {
+                setState({
+                  ...state,
+                  source:
+                    setByRelativePath(
+                      cursor,
+                      {
+                        type: "application",
+                        left: {
+                          type: "reference",
+                          reference: "?",
+                          t: undefined,
+                        },
+                        right: {
+                          type: "reference",
+                          reference: "?",
+                          t: undefined,
+                        },
+                      },
+                      source
+                    ) ?? source,
+                });
+              }}
+            >
+              insert application
+            </button>
+          </div>
+          <div>
+            <button
+              disabled={termUnderCursor === null}
+              onClick={() => {
+                setState({
+                  ...state,
+                  source:
+                    setByRelativePath(
+                      cursor,
+                      {
+                        type: "pi",
+                        head: "?",
+                        from: {
+                          type: "reference",
+                          reference: "?",
+                          t: undefined,
+                        },
+                        to: { type: "reference", reference: "?", t: undefined },
+                      },
+                      source
+                    ) ?? source,
+                });
+              }}
+            >
+              insert pi
+            </button>
+          </div>
+          <div>
+            <button
+              disabled={termUnderCursor === null}
+              onClick={() => {
+                setState({
+                  ...state,
+                  source:
+                    setByRelativePath(
+                      cursor,
+                      {
+                        type: "lambda",
+                        head: "?",
+                        from: {
+                          type: "reference",
+                          reference: "?",
+                          t: undefined,
+                        },
+                        body: {
+                          type: "reference",
+                          reference: "?",
+                          t: undefined,
+                        },
+                      },
+                      source
+                    ) ?? source,
+                });
+              }}
+            >
+              insert lambda
+            </button>
+          </div>
+          <div>
+            <button
+              disabled={termUnderCursor === null}
+              onClick={() => {
+                if (termUnderCursor) {
+                  setState({ ...state, clipBoard: termUnderCursor });
+                }
+              }}
+            >
+              copy
+            </button>
+            <button
+              disabled={state.clipBoard === null || termUnderCursor === null}
+              onClick={() => {
+                if (state.clipBoard && termUnderCursor) {
+                  setState({
+                    ...state,
+                    source:
+                      setByRelativePath(cursor, state.clipBoard, source) ??
+                      source,
+                  });
+                }
+              }}
+            >
+              paste
+            </button>
+            <div>
+              {state.clipBoard && (
+                <TermComponent
+                  term={state.clipBoard}
+                  path={["*"]}
+                  parens={false}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </EditorContext.Provider>
+  );
+}
 
 export const colors = {
   background: "#282c34",
@@ -28,141 +280,6 @@ export const styleInputSeamless: React.CSSProperties = {
   color: "inherit",
   font: "inherit",
   fontSize: "inherit",
-  outline: "none",
   padding: 0,
   margin: 0,
 };
-
-type EditorState = {
-  cursor: TermPath;
-};
-
-function useEditor() {
-  const [program, setProgram] = React.useState<Program>({});
-  const [state, setState] = React.useState<EditorState>({
-    cursor: [],
-  });
-  const setCursor = (path: TermPath) => {
-    setState((state) => ({ ...state, cursor: path }));
-  };
-  return {
-    program,
-    state,
-    action: {
-      setProgram,
-      setCursor,
-    },
-  };
-}
-
-export const EditorContext = React.createContext<ReturnType<typeof useEditor>>(
-  null as any
-);
-
-export default function App() {
-  const editor = useEditor();
-  return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        backgroundColor: colors.background,
-        color: colors.white,
-        whiteSpace: "pre",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
-      <div style={{ borderBottom: `1px solid ${colors.white}` }}>
-        <button
-          onClick={() => {
-            load((text) => editor.action.setProgram(JSON.parse(text)));
-          }}
-        >
-          import
-        </button>
-        <button
-          onClick={() => {
-            load((text) =>
-              editor.action.setProgram({
-                ...editor.program,
-                ...JSON.parse(text),
-              })
-            );
-          }}
-        >
-          import overwrite
-        </button>
-        <button
-          onClick={() =>
-            download(
-              JSON.stringify(editor.program, null, 2),
-              "application/json"
-            )
-          }
-        >
-          export
-        </button>
-      </div>
-      <div
-        style={{
-          flexGrow: 1,
-          overflow: "auto",
-          padding: "1em",
-        }}
-      >
-        <div>
-          <EditorContext.Provider value={editor}>
-            <ProgramComponent program={editor.program} />
-          </EditorContext.Provider>
-        </div>
-        <div style={{ height: "calc(100% - 2ch)" }}></div>
-      </div>
-      <div style={{ borderTop: `1px solid ${colors.white}` }}>
-        {JSON.stringify(editor.state.cursor)}
-      </div>
-    </div>
-  );
-}
-
-function download(data: string, type: "application/json") {
-  const filename = prompt();
-  if (!filename) return;
-  const file = new Blob([data], { type: type });
-  if (window.navigator.msSaveOrOpenBlob) {
-    // IE10+
-    window.navigator.msSaveOrOpenBlob(file, filename);
-  } else {
-    // Others
-    const a = document.createElement("a");
-    const url = URL.createObjectURL(file);
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function () {
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-    }, 0);
-  }
-}
-
-function load(onLoad: (text: string) => void) {
-  const input = document.createElement("input");
-  document.body.appendChild(input);
-  input.type = "file";
-  input.addEventListener("change", (event: any) => {
-    const file = event.target.files[0];
-    if (!file) {
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = function (event: any) {
-      const contents = event.target.result;
-      onLoad(contents);
-      document.body.removeChild(input);
-    };
-    reader.readAsText(file);
-  });
-  input.click();
-}

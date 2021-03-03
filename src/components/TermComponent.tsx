@@ -1,26 +1,27 @@
-import * as React from "react";
-import { TermPath } from "../core/path";
 import { Term } from "../core/program";
-import { ReferenceComponent } from "./ReferenceComponent";
-import { ArrowComponent } from "./ArrowComponent";
+import { LambdaComponent } from "./LambdaComponent";
+import { PiComponent } from "./PiComponent";
 import { ApplicationComponent } from "./ApplicationComponent";
+import { ReferenceComponent } from "./ReferenceComponent";
+import { TermPath } from "../core/path";
 
 export function TermComponent({
   term,
-  parens,
   path,
+  parens,
 }: {
   term: Term;
-  parens: boolean;
   path: TermPath;
+  parens: boolean;
 }) {
   switch (term.type) {
     case "reference":
       return <ReferenceComponent term={term} path={path} />;
-    case "arrow":
-      return <ArrowComponent term={term} parens={parens} path={path} />;
-    case "application": {
-      return <ApplicationComponent term={term} parens={parens} path={path} />;
-    }
+    case "application":
+      return <ApplicationComponent term={term} path={path} parens={parens} />;
+    case "pi":
+      return <PiComponent term={term} path={path} parens={parens} />;
+    case "lambda":
+      return <LambdaComponent term={term} path={path} parens={parens} />;
   }
 }

@@ -1,14 +1,7 @@
-import * as React from "react";
-import { isSamePath, setByPath, TermPath, getByPath } from "../core/path";
+import { useContext } from "react";
 import { Reference } from "../core/program";
-import { Hoverable } from "./Hoverable";
-import { Details } from "./Details";
-import {
-  EditorContext,
-  ProgramContext,
-  styleInputSeamless,
-  colors,
-} from "../App";
+import { colors, EditorContext, styleInputSeamless } from "../App";
+import { isSamePath, setByRelativePath, TermPath } from "../core/path";
 
 export function ReferenceComponent({
   term,
@@ -17,225 +10,35 @@ export function ReferenceComponent({
   term: Reference;
   path: TermPath;
 }) {
-  const editor = React.useContext(EditorContext);
-  const { hasError, getType } = React.useContext(ProgramContext);
-  const [hasMouseOver, setHasMouseOver] = React.useState(false);
-  const inputRef = React.useRef<HTMLInputElement | null>(null);
-  const hasCursor = isSamePath(path, editor.state.cursor);
-  React.useLayoutEffect(() => {
-    if (hasCursor) inputRef.current?.focus();
-  }, [hasCursor]);
-  const type = getType(term);
-  const hasType = type !== null;
+  const { state, setState } = useContext(EditorContext);
+  const { source, cursor } = state;
+  const hasCursor = isSamePath(path, cursor);
   return (
-    <Hoverable
-      hasMouseOver={hasMouseOver}
-      head={
-        <input
-          ref={inputRef}
-          style={{
-            ...styleInputSeamless,
-            width: `${term.reference.length || 1}ch`,
-            backgroundColor:
-              hasMouseOver || hasCursor
-                ? colors.backgroundDark
-                : styleInputSeamless.backgroundColor,
-            borderBottom: hasError(term)
-              ? `2px solid ${colors.red}`
-              : !hasType
-              ? `2px solid ${colors.gray}`
-              : "2px solid transparent",
-            marginBottom: "-2px",
-          }}
-          onMouseOver={() => setHasMouseOver(true)}
-          onMouseLeave={() => setHasMouseOver(false)}
-          value={term.reference}
-          onChange={(event) => {
-            if (/^[a-zA-Z0-9?]*$/.test(event.currentTarget.value)) {
-              const program = setByPath(
-                path,
-                {
-                  type: "reference",
-                  reference: event.currentTarget.value,
-                },
-                editor.program
-              );
-              if (program) {
-                editor.action.setProgram(program);
-              }
-            }
-          }}
-          onKeyDown={(event) => {
-            const parentPath = path.slice(0, -1);
-            const leafPath = path[path.length - 1];
-            const parent = getByPath(parentPath, editor.program);
-            if (event.key === " ") {
-              event.preventDefault();
-              if (parent?.type === "application" && leafPath === "right") {
-                const program = setByPath(
-                  parentPath,
-                  {
-                    type: "application",
-                    left: parent,
-                    right: { type: "reference", reference: "" },
-                  },
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor([...parentPath, "right"]);
-                }
-              } else {
-                const program = setByPath(
-                  path,
-                  {
-                    type: "application",
-                    left: term,
-                    right: { type: "reference", reference: "" },
-                  },
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor([...path, "right"]);
-                }
-              }
-            } else if (event.key === "Backspace" && term.reference === "") {
-              if (parent?.type === "application" && leafPath === "right") {
-                event.preventDefault();
-                const program = setByPath(
-                  parentPath,
-                  parent.left,
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor(parentPath);
-                }
-              } else if (parent?.type === "arrow" && leafPath === "to") {
-                event.preventDefault();
-                const program = setByPath(
-                  parentPath,
-                  parent.from,
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor(parentPath);
-                }
-              } else if (parent?.type === "arrow" && leafPath === "from") {
-                event.preventDefault();
-                const program = setByPath(
-                  parentPath,
-                  parent.to,
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor(parentPath);
-                }
-              } else if (path.length === 2) {
-                event.preventDefault();
-                const { [path[0]]: removed, ...program } = editor.program;
-                editor.action.setProgram(program);
-              }
-            } else if (event.key === "-") {
-              event.preventDefault();
-              if (parent?.type === "arrow" && leafPath === "from") {
-                const program = setByPath(
-                  parentPath,
-                  {
-                    type: "arrow",
-                    from: term,
-                    to: {
-                      type: "arrow",
-                      from: { type: "reference", reference: "" },
-                      to: parent.to,
-                    },
-                  },
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor([...parentPath, "to", "from"]);
-                }
-              } else {
-                const program = setByPath(
-                  path,
-                  {
-                    type: "arrow",
-                    from: term,
-                    to: { type: "reference", reference: "" },
-                  },
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor([...path, "to"]);
-                }
-              }
-            } else if (event.key === "Enter") {
-              editor.action.setCursor([]);
-            } else if (event.key === ":") {
-              const program = setByPath(
-                path,
-                {
-                  type: "arrow",
-                  head: term.reference,
-                  from: { type: "reference", reference: "" },
-                  to: { type: "reference", reference: "" },
-                },
-                editor.program
-              );
-              if (program) {
-                editor.action.setProgram(program);
-                editor.action.setCursor([...path, "from"]);
-              }
-            } else if (event.key === "ArrowRight") {
-              if (
-                parent?.type === "arrow" &&
-                leafPath === "from" &&
-                event.currentTarget.selectionStart ===
-                  event.currentTarget.selectionEnd &&
-                event.currentTarget.selectionStart === term.reference.length
-              ) {
-                event.preventDefault();
-                editor.action.setCursor([...parentPath, "to"]);
-              } else if (
-                parent?.type === "application" &&
-                leafPath === "left" &&
-                event.currentTarget.selectionStart ===
-                  event.currentTarget.selectionEnd &&
-                event.currentTarget.selectionStart === term.reference.length
-              ) {
-                event.preventDefault();
-                editor.action.setCursor([...parentPath, "right"]);
-              }
-            } else if (event.key === "(") {
-              if (parent?.type === "application" && leafPath === "right") {
-                event.preventDefault();
-                const program = setByPath(
-                  path,
-                  {
-                    type: "application",
-                    left: { type: "reference", reference: "" },
-                    right: { type: "reference", reference: "" },
-                  },
-                  editor.program
-                );
-                if (program) {
-                  editor.action.setProgram(program);
-                  editor.action.setCursor([...parentPath, "right", "left"]);
-                }
-              }
-            }
-          }}
-          onClick={() => {
-            editor.action.setCursor(path);
-          }}
-        />
-      }
-      body={<Details term={term} />}
+    <input
+      value={term.reference}
+      onChange={(event) => {
+        setState({
+          ...state,
+          source:
+            setByRelativePath(
+              path,
+              {
+                type: "reference",
+                reference: event.currentTarget.value,
+                t: undefined,
+              },
+              source
+            ) ?? source,
+        });
+      }}
+      style={{
+        ...styleInputSeamless,
+        width: `${term.reference.length || 1}ch`,
+        backgroundColor: hasCursor ? colors.backgroundDark : "transparent",
+      }}
+      onClick={() => {
+        setState({ ...state, cursor: path });
+      }}
     />
   );
 }

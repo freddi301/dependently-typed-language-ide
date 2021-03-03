@@ -1,16 +1,13 @@
-export type Term = Reference | Arrow | Application;
+export type Term = Reference | Application | Pi | Lambda;
 
-export type Reference = { type: "reference"; reference: string };
-export type Arrow = { type: "arrow"; head?: string; from: Term; to: Term };
+export type Reference = {
+  type: "reference";
+  reference: string;
+  t: Term | undefined;
+};
 export type Application = { type: "application"; left: Term; right: Term };
-
-export type Program = Record<
-  string,
-  {
-    type: Term | null;
-    value: Term | null;
-  }
->;
+export type Pi = { type: "pi"; head: string; from: Term; to: Term };
+export type Lambda = { type: "lambda"; head: string; from: Term; body: Term };
 
 function replace(previous: string, next: Term, term: Term): Term {
   switch (term.type) {
@@ -18,23 +15,10 @@ function replace(previous: string, next: Term, term: Term): Term {
       if (term.reference === previous) {
         return next;
       } else {
-        return term;
-      }
-    }
-    case "arrow": {
-      if (term.head === previous) {
         return {
-          type: "arrow",
-          head: term.head,
-          from: replace(previous, next, term.from),
-          to: term.to,
-        };
-      } else {
-        return {
-          type: "arrow",
-          head: term.head,
-          from: replace(previous, next, term.from),
-          to: replace(previous, next, term.to),
+          type: "reference",
+          reference: term.reference,
+          t: term.t ? replace(previous, next, term.t) : term.t,
         };
       }
     }
@@ -45,140 +29,187 @@ function replace(previous: string, next: Term, term: Term): Term {
         right: replace(previous, next, term.right),
       };
     }
+    case "pi": {
+      if (term.head === previous) {
+        return {
+          type: "pi",
+          head: term.head,
+          from: replace(previous, next, term.from),
+          to: term.to,
+        };
+      } else {
+        return {
+          type: "pi",
+          head: term.head,
+          from: replace(previous, next, term.from),
+          to: replace(previous, next, term.to),
+        };
+      }
+    }
+    case "lambda": {
+      if (term.head === previous) {
+        return {
+          type: "lambda",
+          head: term.head,
+          from: replace(previous, next, term.from),
+          body: term.body,
+        };
+      } else {
+        return {
+          type: "lambda",
+          head: term.head,
+          from: replace(previous, next, term.from),
+          body: replace(previous, next, term.body),
+        };
+      }
+    }
   }
 }
 
-function isSame(a: Term, b: Term): boolean {
+export function isEqualTerm(a: Term, b: Term): boolean {
   switch (a.type) {
     case "reference": {
       return a.type === b.type && a.reference === b.reference;
     }
-    case "arrow": {
-      return a.type === b.type && isSame(a.from, b.from) && isSame(a.to, b.to);
-    }
     case "application": {
       return (
-        a.type === b.type && isSame(a.left, b.left) && isSame(a.right, b.right)
+        a.type === b.type &&
+        isEqualTerm(a.left, b.left) &&
+        isEqualTerm(a.right, b.right)
+      );
+    }
+    case "pi": {
+      return (
+        a.type === b.type &&
+        a.head === b.head &&
+        isEqualTerm(a.from, b.from) &&
+        isEqualTerm(a.to, b.to)
+      );
+    }
+    case "lambda": {
+      return (
+        a.type === b.type &&
+        a.head === b.head &&
+        isEqualTerm(a.from, b.from) &&
+        isEqualTerm(a.body, b.body)
       );
     }
   }
 }
 
-export function fromProgram(program: Program) {
-  function check() {
-    const mismatchedArgument = new Map<
-      Term,
-      { expected: Term; detected: Term }
-    >();
-    const isNotAFunction = new Map<
-      Term,
-      {
-        detected: Term;
-      }
-    >();
-    function checkTerm(term: Term) {
-      if (term.type === "application") {
-        const leftType = getType(term.left);
-        const rightType = getType(term.right);
-        if (leftType && rightType) {
-          if (leftType.type === "arrow") {
-            if (!isSame(leftType.from, rightType)) {
-              mismatchedArgument.set(term.right, {
-                expected: leftType.from,
-                detected: rightType,
-              });
-            }
-          } else {
-            isNotAFunction.set(term.left, { detected: leftType });
-          }
-        }
-        checkTerm(term.left);
-        checkTerm(term.right);
-      }
+export function getValue(term: Term): Term | null {
+  switch (term.type) {
+    case "reference": {
+      return { type: "reference", reference: term.reference, t: term.t };
     }
-    for (const [k, v] of Object.entries(program)) {
-      if (v.value) {
-        checkTerm(v.value);
-      }
-      if (v.type) {
-        checkTerm(v.type);
-      }
-      if (v.value && v.type) {
-        const annotatedType = getValue(v.type);
-        const valueType = getType(v.value);
-        if (valueType && annotatedType && !isSame(valueType, annotatedType)) {
-          mismatchedArgument.set(v.value, {
-            expected: annotatedType,
-            detected: valueType,
-          });
+    case "application": {
+      const left = getValue(term.left);
+      if (!left) return null;
+      const right = getValue(term.right);
+      if (!right) return null;
+      switch (left.type) {
+        case "reference": {
+          return {
+            type: "application",
+            left,
+            right,
+          };
+        }
+        case "application": {
+          return {
+            type: "application",
+            left,
+            right,
+          };
+        }
+        case "pi": {
+          return null;
+        }
+        case "lambda": {
+          // check type
+          return getValue(replace(left.head, right, left.body));
         }
       }
+      break; // for eslint
     }
-    return { mismatchedArgument, isNotAFunction };
-  }
-  const checks = check();
-  function hasError(term: Term) {
-    return (
-      checks.mismatchedArgument.has(term) || checks.isNotAFunction.has(term)
-    );
-  }
-  function getType(term: Term): Term | null {
-    switch (term.type) {
-      case "reference": {
-        const top = program[term.reference];
-        if (top) {
-          const annotatedType = top.type;
-          if (annotatedType) {
-            return getValue(annotatedType);
-          }
-          if (top.value) {
-            return getType(top.value);
-          }
-        }
-        break;
-      }
-      case "application": {
-        const leftType = getType(term.left);
-        if (leftType && leftType.type === "arrow") {
-          const to = leftType.head
-            ? replace(leftType.head, term.right, leftType.to)
-            : leftType.to;
-          return getValue(to);
-        }
-        break;
-      }
-      case "arrow": {
-        return { type: "reference", reference: "type" };
-      }
+    case "pi": {
+      const from = getValue(term.from);
+      if (!from) return null;
+      const placeholder = String(Math.random());
+      const metaTo = getValue(
+        replace(
+          term.head,
+          { type: "reference", reference: placeholder, t: from },
+          term.to
+        )
+      );
+      if (!metaTo) return null;
+      const to = replace(
+        placeholder,
+        { type: "reference", reference: term.head, t: from },
+        metaTo
+      );
+      return {
+        type: "pi",
+        head: term.head,
+        from,
+        to,
+      };
     }
-    return null;
+    case "lambda": {
+      const from = getValue(term.from);
+      if (!from) return null;
+      const placeholder = String(Math.random());
+      const metaBody = getValue(
+        replace(
+          term.head,
+          { type: "reference", reference: placeholder, t: from },
+          term.body
+        )
+      );
+      if (!metaBody) return null;
+      const body = replace(
+        placeholder,
+        { type: "reference", reference: term.head, t: from },
+        metaBody
+      );
+      return {
+        type: "lambda",
+        head: term.head,
+        from,
+        body,
+      };
+    }
   }
+}
 
-  function getValue(term: Term): Term {
-    switch (term.type) {
-      case "reference": {
-        const top = program[term.reference];
-        if (top?.value) {
-          return getValue(top.value);
-        }
-        return { type: "reference", reference: term.reference };
-      }
-      case "arrow": {
-        return {
-          type: "arrow",
-          head: term.head,
-          from: getValue(term.from),
-          to: getValue(term.to),
-        };
-      }
-      case "application": {
-        return {
-          type: "application",
-          left: getValue(term.left),
-          right: getValue(term.right),
-        };
+export function getType(term: Term): Term | null {
+  switch (term.type) {
+    case "reference": {
+      if (term.reference === "type")
+        return { type: "reference", reference: "type", t: undefined };
+      return term.t ?? null;
+    }
+    case "application": {
+      const leftType = getType(term.left);
+      if (!leftType) return null;
+      const rightType = getType(term.right);
+      if (!rightType) return null;
+      if (leftType.type !== "pi") return null;
+      if (!isEqualTerm(leftType.from, rightType)) return null;
+      if (leftType.head) {
+        return replace(leftType.head, rightType, leftType.to);
+      } else {
+        return leftType.to;
       }
     }
+    case "pi": {
+      return { type: "reference", reference: "type", t: undefined };
+    }
+    case "lambda": {
+      const to = getType(term.body);
+      if (!to) return null;
+      return { type: "pi", head: term.head, from: term.from, to };
+    }
   }
-  return { program, checks, hasError, getType, getValue };
 }
