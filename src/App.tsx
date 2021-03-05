@@ -5,46 +5,34 @@ import * as Source from "./core/Source";
 function getTextTreeFromSource(source: Source.Term): TextTree.Tree {
   switch (source.type) {
     case "reference":
-      return { type: "leaf", text: source.reference };
+      return { type: "single", text: source.reference };
     case "pi": {
       const flattened = flattenPi({ collected: [], source });
       return {
-        type: "branch",
+        type: "double",
         separator: " -> ",
-        parenthesis: {
-          left: "(",
-          right: ")",
+        first: {
+          type: "multiple",
+          separator: ", ",
+          parenthesis: { left: "(", right: ")" },
+          elements: flattened.collected.map(({ head, from }) => {
+            return head
+              ? {
+                  type: "double",
+                  separator: " : ",
+                  first: { type: "single", text: head },
+                  second: getTextTreeFromSource(from),
+                }
+              : getTextTreeFromSource(from);
+          }),
         },
-        elements: [
-          {
-            type: "branch",
-            separator: ", ",
-            parenthesis: { left: "(", right: ")" },
-            elements: flattened.collected.map(({ head, from }) => {
-              return head
-                ? {
-                    type: "branch",
-                    separator: " : ",
-                    parenthesis: {
-                      left: "(",
-                      right: ")",
-                    },
-                    elements: [
-                      { type: "leaf", text: head },
-                      getTextTreeFromSource(from),
-                    ],
-                  }
-                : getTextTreeFromSource(from);
-            }),
-          },
-          getTextTreeFromSource(flattened.source),
-        ],
+        second: getTextTreeFromSource(flattened.source),
       };
     }
     case "application": {
       const flattened = flattenApplication(source);
       return {
-        type: "branch",
+        type: "multiple",
         separator: " ",
         parenthesis: {
           left: "(",

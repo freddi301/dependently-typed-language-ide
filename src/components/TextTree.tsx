@@ -1,28 +1,17 @@
 import React, { useState } from "react";
 import { colors } from "../App";
 
-export type Tree = Leaf | Branch;
-type Leaf = { type: "leaf"; text: string };
-type Branch = {
-  type: "branch";
+export type Tree = Single | Double | Multiple;
+type Single = { type: "single"; text: string };
+type Double = { type: "double"; separator: string; first: Tree; second: Tree };
+type Multiple = {
+  type: "multiple";
   separator: string;
   parenthesis: { left: string; right: string };
   elements: Array<Tree>;
 };
 
-type Line =
-  | { type: "tree"; level: number; tree: Tree; separator: string | null }
-  | {
-      type: "open";
-      level: number;
-      parenthesis: { left: string; right: string };
-    }
-  | {
-      type: "close";
-      level: number;
-      parenthesis: { left: string; right: string };
-      separator: string | null;
-    };
+type Line = { level: number; content: Array<Tree | string | null> };
 
 type Params = {
   indentation: string;
@@ -32,9 +21,15 @@ type Params = {
 export function make({ indentation, maxColumns }: Params) {
   function getInlineLength(tree: Tree): number {
     switch (tree.type) {
-      case "leaf":
+      case "single":
         return tree.text.length;
-      case "branch":
+      case "double":
+        return (
+          getInlineLength(tree.first) +
+          tree.separator.length +
+          getInlineLength(tree.second)
+        );
+      case "multiple":
         return tree.elements.reduce(
           (memo, item) => memo + getInlineLength(item),
           tree.parenthesis.left.length +
@@ -48,24 +43,87 @@ export function make({ indentation, maxColumns }: Params) {
     level: number,
     separator: string | null
   ): Array<Line> {
+    const remainingColumns = maxColumns - level * indentation.length;
     switch (tree.type) {
-      case "leaf":
-        return [{ type: "tree", level, tree, separator }];
-      case "branch": {
-        if (getInlineLength(tree) <= maxColumns - level * indentation.length) {
-          return [{ type: "tree", level, tree, separator }];
+      case "single":
+        return [{ level, content: [tree, separator] }];
+      case "double": {
+        if (getInlineLength(tree) <= remainingColumns) {
+          return [{ level, content: [tree, separator] }];
+        } else if (getInlineLength(tree.first) <= remainingColumns) {
+          if (
+            tree.second.type === "double" &&
+            getInlineLength(tree.second.first) <=
+              remainingColumns - getInlineLength(tree.first)
+          ) {
+            return [
+              {
+                level,
+                content: [
+                  tree.first,
+                  tree.separator,
+                  tree.second.first,
+                  tree.second.separator,
+                ],
+              },
+              ...getLines(tree.second.second, level + 1, separator),
+            ];
+          } else if (
+            tree.second.type === "multiple" &&
+            getInlineLength(tree.second) >
+              remainingColumns - getInlineLength(tree.first)
+          ) {
+            const treeSecond = tree.second;
+            return [
+              {
+                level,
+                content: [
+                  tree.first,
+                  tree.separator,
+                  tree.second.parenthesis.left,
+                ],
+              },
+              ...treeSecond.elements.flatMap((element, index, array) => {
+                return getLines(
+                  element,
+                  level + 1,
+                  treeSecond.separator
+                  // index < array.length - 1 ? tree.separator : null
+                );
+              }),
+              { level, content: [tree.second.parenthesis.right, separator] },
+            ];
+          }
+          return [
+            {
+              level,
+              content: [tree.first, tree.separator],
+            },
+            ...getLines(tree.second, level + 1, separator),
+          ];
+        } else {
+          return [
+            ...getLines(tree.first, level + 1, tree.separator),
+            ...getLines(tree.second, level + 1, separator),
+          ];
+        }
+      }
+      case "multiple": {
+        if (getInlineLength(tree) <= remainingColumns) {
+          return [{ level, content: [tree, separator] }];
         }
         const children = tree.elements.flatMap((element, index, array) => {
           return getLines(
             element,
             level + 1,
-            index < array.length - 1 ? tree.separator : null
+            tree.separator
+            // index < array.length - 1 ? tree.separator : null
           );
         });
         return [
-          { type: "open", level, parenthesis: tree.parenthesis },
+          { level, content: [tree.parenthesis.left] },
           ...children,
-          { type: "close", level, parenthesis: tree.parenthesis, separator },
+          { level, content: [tree.parenthesis.right, separator] },
         ];
       }
     }
@@ -84,10 +142,10 @@ export function textArrayToTree(
     parenthesis,
   }: { separator: string; parenthesis: { left: string; right: string } }
 ): Tree {
-  if (typeof textArray === "string") return { type: "leaf", text: textArray };
+  if (typeof textArray === "string") return { type: "single", text: textArray };
   if (textArray instanceof Array)
     return {
-      type: "branch",
+      type: "multiple",
       separator,
       parenthesis,
       elements: textArray.map((element) =>
@@ -129,28 +187,18 @@ export function ViewLines({
           <div key={index}>
             {lineNumber(index + 1)}
             {indentation.repeat(line.level)}
-            {(() => {
-              switch (line.type) {
-                case "tree":
+            {line.content.map((content, index) => {
+              switch (typeof content) {
+                case "string":
+                  return content;
+                case "object":
                   return (
-                    <>
-                      <ViewInlineTree tree={line.tree} />
-                      {line.separator}
-                    </>
+                    content && <ViewInlineTree key={index} tree={content} />
                   );
-                case "open": {
-                  return <>{line.parenthesis.left}</>;
-                }
-                case "close": {
-                  return (
-                    <>
-                      {line.parenthesis.right}
-                      {line.separator}
-                    </>
-                  );
-                }
+                default:
+                  return null;
               }
-            })()}
+            })}
           </div>
         );
       })}
@@ -160,13 +208,21 @@ export function ViewLines({
 
 function ViewInlineTree({ tree }: { tree: Tree }) {
   switch (tree.type) {
-    case "leaf":
-      return <span>{tree.text}</span>;
-    case "branch": {
+    case "single":
+      return <>{tree.text}</>;
+    case "double":
+      return (
+        <>
+          <ViewInlineTree tree={tree.first} />
+          {tree.separator}
+          <ViewInlineTree tree={tree.second} />
+        </>
+      );
+    case "multiple": {
       const { parenthesis, separator } = tree;
       return (
         <>
-          {parenthesis?.left}
+          {parenthesis.left}
           {tree.elements.map((element, index, array) => {
             return (
               <React.Fragment key={index}>
@@ -175,54 +231,54 @@ function ViewInlineTree({ tree }: { tree: Tree }) {
               </React.Fragment>
             );
           })}
-          {parenthesis?.right}
+          {parenthesis.right}
         </>
       );
     }
   }
 }
 
-export function SimpleTest() {
-  const [maxColumns, setMaxColumns] = useState(20);
-  const params = {
-    indentation: "  ",
-    separator: ", ",
-    parenthesis: { left: "(", right: ")" },
-    maxColumns,
-  };
-  const lines = make(params).getLines(
-    textArrayToTree(
-      [
-        "a",
-        "b",
-        "c",
-        ["d", "e"],
-        "f",
-        ["g", ["h", ["i", ["j", "k"]]]],
-        [["l", "m", "n", "o"], "p", ["q", "r", ["s", "t"]]],
-        "u",
-      ],
-      { separator: ", ", parenthesis: { left: "[", right: "]" } }
-    ),
-    0,
-    null
-  );
-  return (
-    <div
-      style={{
-        width: "100vw",
-        height: "100vh",
-        backgroundColor: colors.background,
-        color: colors.white,
-        whiteSpace: "pre",
-      }}
-    >
-      <input
-        type="number"
-        value={maxColumns}
-        onChange={(event) => setMaxColumns(Number(event.currentTarget.value))}
-      />
-      <ViewLines lines={lines} params={params} showLineNumbers={true} />
-    </div>
-  );
-}
+// export function SimpleTest() {
+//   const [maxColumns, setMaxColumns] = useState(20);
+//   const params = {
+//     indentation: "  ",
+//     separator: ", ",
+//     parenthesis: { left: "(", right: ")" },
+//     maxColumns,
+//   };
+//   const lines = make(params).getLines(
+//     textArrayToTree(
+//       [
+//         "a",
+//         "b",
+//         "c",
+//         ["d", "e"],
+//         "f",
+//         ["g", ["h", ["i", ["j", "k"]]]],
+//         [["l", "m", "n", "o"], "p", ["q", "r", ["s", "t"]]],
+//         "u",
+//       ],
+//       { separator: ", ", parenthesis: { left: "[", right: "]" } }
+//     ),
+//     0,
+//     null
+//   );
+//   return (
+//     <div
+//       style={{
+//         width: "100vw",
+//         height: "100vh",
+//         backgroundColor: colors.background,
+//         color: colors.white,
+//         whiteSpace: "pre",
+//       }}
+//     >
+//       <input
+//         type="number"
+//         value={maxColumns}
+//         onChange={(event) => setMaxColumns(Number(event.currentTarget.value))}
+//       />
+//       <ViewLines lines={lines} params={params} showLineNumbers={true} />
+//     </div>
+//   );
+// }
