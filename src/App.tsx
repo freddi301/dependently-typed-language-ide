@@ -1,26 +1,98 @@
 import React, { useState } from "react";
 import * as TextTree from "./components/TextTree";
+import * as Source from "./core/Source";
+
+function getTextTreeFromSource(source: Source.Term): TextTree.Tree {
+  switch (source.type) {
+    case "reference":
+      return { type: "leaf", text: source.reference };
+    case "pi": {
+      const flattened = flattenPi({ collected: [], source });
+      return {
+        type: "branch",
+        separator: " -> ",
+        parenthesis: {
+          left: "(",
+          right: ")",
+        },
+        elements: [
+          {
+            type: "branch",
+            separator: ", ",
+            parenthesis: { left: "(", right: ")" },
+            elements: flattened.collected.map(({ head, from }) => {
+              return head
+                ? {
+                    type: "branch",
+                    separator: " : ",
+                    parenthesis: {
+                      left: "(",
+                      right: ")",
+                    },
+                    elements: [
+                      { type: "leaf", text: head },
+                      getTextTreeFromSource(from),
+                    ],
+                  }
+                : getTextTreeFromSource(from);
+            }),
+          },
+          getTextTreeFromSource(flattened.source),
+        ],
+      };
+    }
+    case "application": {
+      const flattened = flattenApplication(source);
+      return {
+        type: "branch",
+        separator: " ",
+        parenthesis: {
+          left: "(",
+          right: ")",
+        },
+        elements: flattened.map(getTextTreeFromSource),
+      };
+    }
+  }
+}
+
+type FlattenedPi = {
+  collected: Array<{ head: string; from: Source.Term }>;
+  source: Source.Term;
+};
+function flattenPi({ collected, source }: FlattenedPi): FlattenedPi {
+  switch (source.type) {
+    case "pi":
+      return flattenPi({
+        collected: [...collected, { head: source.head, from: source.from }],
+        source: source.to,
+      });
+    default:
+      return { collected, source };
+  }
+}
+
+// ((a b) c) d
+// [a, b, c, d]
+function flattenApplication(source: Source.Term): Array<Source.Term> {
+  switch (source.type) {
+    case "application":
+      return [...flattenApplication(source.left), source.right];
+    default:
+      return [source];
+  }
+}
 
 export default function App() {
-  const [maxColumns, setMaxColumns] = useState(20);
+  const [maxColumns, setMaxColumns] = useState(40);
   const params = {
     indentation: "  ",
-    separator: ", ",
-    parenthesis: { left: "(", right: ")" },
     maxColumns,
   };
   const lines = TextTree.make(params).getLines(
-    TextTree.textArrayToTree([
-      "a",
-      "b",
-      "c",
-      ["d", "e"],
-      "f",
-      ["g", ["h", ["i", ["j", "k"]]]],
-      [["l", "m", "n", "o"], "p", ["q", "r", ["s", "t"]]],
-      "u",
-    ]),
-    0
+    getTextTreeFromSource(sampleSource),
+    0,
+    null
   );
   return (
     <div
@@ -37,7 +109,11 @@ export default function App() {
         value={maxColumns}
         onChange={(event) => setMaxColumns(Number(event.currentTarget.value))}
       />
-      <TextTree.ViewLines lines={lines} params={params} />
+      <TextTree.ViewLines
+        lines={lines}
+        params={params}
+        showLineNumbers={true}
+      />
     </div>
   );
 }
@@ -66,4 +142,73 @@ export const styleInputSeamless: React.CSSProperties = {
   padding: 0,
   margin: 0,
   outline: "none",
+};
+
+const sampleSource: Source.Term = {
+  type: "pi",
+  head: "boolean",
+  from: { type: "reference", reference: "type" },
+  to: {
+    type: "pi",
+    head: "true",
+    from: { type: "reference", reference: "boolean" },
+    to: {
+      type: "pi",
+      head: "false",
+      from: { type: "reference", reference: "boolean" },
+      to: {
+        type: "pi",
+        head: "not",
+        from: {
+          type: "pi",
+          head: "",
+          from: { type: "reference", reference: "boolean" },
+          to: { type: "reference", reference: "boolean" },
+        },
+        to: {
+          type: "pi",
+          head: "and",
+          from: {
+            type: "pi",
+            head: "",
+            from: { type: "reference", reference: "boolean" },
+            to: {
+              type: "pi",
+              head: "",
+              from: { type: "reference", reference: "boolean" },
+              to: { type: "reference", reference: "boolean" },
+            },
+          },
+          to: {
+            type: "pi",
+            head: "or",
+            from: {
+              type: "pi",
+              head: "",
+              from: { type: "reference", reference: "boolean" },
+              to: {
+                type: "pi",
+                head: "",
+                from: { type: "reference", reference: "boolean" },
+                to: { type: "reference", reference: "boolean" },
+              },
+            },
+            to: {
+              type: "application",
+              left: { type: "reference", reference: "not" },
+              right: {
+                type: "application",
+                left: {
+                  type: "application",
+                  left: { type: "reference", reference: "and" },
+                  right: { type: "reference", reference: "false" },
+                },
+                right: { type: "reference", reference: "true" },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };

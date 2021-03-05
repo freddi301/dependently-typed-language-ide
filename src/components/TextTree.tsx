@@ -1,60 +1,75 @@
-import React from "react";
+import React, { useState } from "react";
+import { colors } from "../App";
 
-type Tree = Leaf | Branch;
+export type Tree = Leaf | Branch;
 type Leaf = { type: "leaf"; text: string };
-type Branch = { type: "branch"; elements: Array<Tree> };
+type Branch = {
+  type: "branch";
+  separator: string;
+  parenthesis: { left: string; right: string };
+  elements: Array<Tree>;
+};
 
 type Line =
-  | { type: "tree"; level: number; tree: Tree }
-  | { type: "parenthesis"; level: number; parenthesis: "left" | "right" };
+  | { type: "tree"; level: number; tree: Tree; separator: string | null }
+  | {
+      type: "open";
+      level: number;
+      parenthesis: { left: string; right: string };
+    }
+  | {
+      type: "close";
+      level: number;
+      parenthesis: { left: string; right: string };
+      separator: string | null;
+    };
 
 type Params = {
   indentation: string;
-  separator: string;
-  parenthesis: { left: string; right: string };
   maxColumns: number;
 };
 
-export function make({
-  indentation,
-  parenthesis,
-  separator,
-  maxColumns,
-}: Params) {
+export function make({ indentation, maxColumns }: Params) {
   function getInlineLength(tree: Tree): number {
     switch (tree.type) {
       case "leaf":
         return tree.text.length;
       case "branch":
-        return (
-          tree.elements.reduce(
-            (memo, item) => memo + getInlineLength(item),
-            0
-          ) +
-          (separator.length * tree.elements.length - 1)
+        return tree.elements.reduce(
+          (memo, item) => memo + getInlineLength(item),
+          tree.parenthesis.left.length +
+            tree.parenthesis.right.length +
+            Math.min(0, tree.separator.length * tree.elements.length - 1)
         );
     }
   }
-
-  function getLines(tree: Tree, level: number): Array<Line> {
+  function getLines(
+    tree: Tree,
+    level: number,
+    separator: string | null
+  ): Array<Line> {
     switch (tree.type) {
       case "leaf":
-        return [{ type: "tree", level, tree }];
+        return [{ type: "tree", level, tree, separator }];
       case "branch": {
         if (getInlineLength(tree) <= maxColumns - level * indentation.length) {
-          return [{ type: "tree", level, tree }];
+          return [{ type: "tree", level, tree, separator }];
         }
+        const children = tree.elements.flatMap((element, index, array) => {
+          return getLines(
+            element,
+            level + 1,
+            index < array.length - 1 ? tree.separator : null
+          );
+        });
         return [
-          { type: "parenthesis", level, parenthesis: "left" },
-          ...tree.elements.flatMap((element) => {
-            return getLines(element, level + 1);
-          }),
-          { type: "parenthesis", level, parenthesis: "right" },
+          { type: "open", level, parenthesis: tree.parenthesis },
+          ...children,
+          { type: "close", level, parenthesis: tree.parenthesis, separator },
         ];
       }
     }
   }
-
   return {
     getLines,
     getInlineLength,
@@ -62,48 +77,77 @@ export function make({
 }
 
 type TextArray = string | Array<TextArray>;
-export function textArrayToTree(textArray: TextArray): Tree {
+export function textArrayToTree(
+  textArray: TextArray,
+  {
+    separator,
+    parenthesis,
+  }: { separator: string; parenthesis: { left: string; right: string } }
+): Tree {
   if (typeof textArray === "string") return { type: "leaf", text: textArray };
   if (textArray instanceof Array)
-    return { type: "branch", elements: textArray.map(textArrayToTree) };
+    return {
+      type: "branch",
+      separator,
+      parenthesis,
+      elements: textArray.map((element) =>
+        textArrayToTree(element, { separator, parenthesis })
+      ),
+    };
   throw new Error();
 }
 
 export function ViewLines({
   lines,
   params,
+  showLineNumbers,
 }: {
   lines: Array<Line>;
   params: Params;
+  showLineNumbers: boolean;
 }) {
-  const { indentation, separator, parenthesis } = params;
+  const { indentation } = params;
+  const lineNumberWidth = `${String(lines.length).length}ch`;
+  const lineNumber = (n: number) =>
+    showLineNumbers ? (
+      <span
+        style={{
+          textAlign: "right",
+          width: lineNumberWidth,
+          userSelect: "none",
+          display: "inline-block",
+          marginRight: "1ch",
+        }}
+      >
+        {n}
+      </span>
+    ) : null;
   return (
     <>
       {lines.map((line, index) => {
         return (
           <div key={index}>
+            {lineNumber(index + 1)}
             {indentation.repeat(line.level)}
             {(() => {
               switch (line.type) {
                 case "tree":
                   return (
                     <>
-                      <ViewInlineTree tree={line.tree} params={params} />
-                      {separator}
+                      <ViewInlineTree tree={line.tree} />
+                      {line.separator}
                     </>
                   );
-                case "parenthesis": {
-                  switch (line.parenthesis) {
-                    case "left":
-                      return parenthesis.left;
-                    case "right":
-                      return (
-                        <>
-                          {parenthesis.right}
-                          {separator}
-                        </>
-                      );
-                  }
+                case "open": {
+                  return <>{line.parenthesis.left}</>;
+                }
+                case "close": {
+                  return (
+                    <>
+                      {line.parenthesis.right}
+                      {line.separator}
+                    </>
+                  );
                 }
               }
             })()}
@@ -114,26 +158,71 @@ export function ViewLines({
   );
 }
 
-function ViewInlineTree({ tree, params }: { tree: Tree; params: Params }) {
-  const { parenthesis, separator } = params;
+function ViewInlineTree({ tree }: { tree: Tree }) {
   switch (tree.type) {
     case "leaf":
       return <span>{tree.text}</span>;
     case "branch": {
+      const { parenthesis, separator } = tree;
       return (
         <>
-          {parenthesis.left}
+          {parenthesis?.left}
           {tree.elements.map((element, index, array) => {
             return (
               <React.Fragment key={index}>
-                <ViewInlineTree tree={element} params={params} />
+                <ViewInlineTree tree={element} />
                 {index < array.length - 1 && separator}
               </React.Fragment>
             );
           })}
-          {parenthesis.right}
+          {parenthesis?.right}
         </>
       );
     }
   }
+}
+
+export function SimpleTest() {
+  const [maxColumns, setMaxColumns] = useState(20);
+  const params = {
+    indentation: "  ",
+    separator: ", ",
+    parenthesis: { left: "(", right: ")" },
+    maxColumns,
+  };
+  const lines = make(params).getLines(
+    textArrayToTree(
+      [
+        "a",
+        "b",
+        "c",
+        ["d", "e"],
+        "f",
+        ["g", ["h", ["i", ["j", "k"]]]],
+        [["l", "m", "n", "o"], "p", ["q", "r", ["s", "t"]]],
+        "u",
+      ],
+      { separator: ", ", parenthesis: { left: "[", right: "]" } }
+    ),
+    0,
+    null
+  );
+  return (
+    <div
+      style={{
+        width: "100vw",
+        height: "100vh",
+        backgroundColor: colors.background,
+        color: colors.white,
+        whiteSpace: "pre",
+      }}
+    >
+      <input
+        type="number"
+        value={maxColumns}
+        onChange={(event) => setMaxColumns(Number(event.currentTarget.value))}
+      />
+      <ViewLines lines={lines} params={params} showLineNumbers={true} />
+    </div>
+  );
 }
