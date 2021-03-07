@@ -1,87 +1,6 @@
-import React, { useState } from "react";
-import * as TextTree from "./components/TextTree";
-import * as Source from "./core/Source";
-
-function getTextTreeFromSource(source: Source.Term): TextTree.Tree {
-  switch (source.type) {
-    case "reference":
-      return { type: "single", text: source.reference };
-    case "pi": {
-      const flattened = flattenPi({ collected: [], source });
-      return {
-        type: "double",
-        separator: " -> ",
-        first: {
-          type: "multiple",
-          separator: ", ",
-          parenthesis: { left: "(", right: ")" },
-          elements: flattened.collected.map(({ head, from }) => {
-            return head
-              ? {
-                  type: "double",
-                  separator: " : ",
-                  first: { type: "single", text: head },
-                  second: getTextTreeFromSource(from),
-                }
-              : getTextTreeFromSource(from);
-          }),
-        },
-        second: getTextTreeFromSource(flattened.source),
-      };
-    }
-    case "application": {
-      const flattened = flattenApplication(source);
-      return {
-        type: "multiple",
-        separator: " ",
-        parenthesis: {
-          left: "(",
-          right: ")",
-        },
-        elements: flattened.map(getTextTreeFromSource),
-      };
-    }
-  }
-}
-
-type FlattenedPi = {
-  collected: Array<{ head: string; from: Source.Term }>;
-  source: Source.Term;
-};
-function flattenPi({ collected, source }: FlattenedPi): FlattenedPi {
-  switch (source.type) {
-    case "pi":
-      return flattenPi({
-        collected: [...collected, { head: source.head, from: source.from }],
-        source: source.to,
-      });
-    default:
-      return { collected, source };
-  }
-}
-
-// ((a b) c) d
-// [a, b, c, d]
-function flattenApplication(source: Source.Term): Array<Source.Term> {
-  switch (source.type) {
-    case "application":
-      return [...flattenApplication(source.left), source.right];
-    default:
-      return [source];
-  }
-}
+import React from "react";
 
 export default function App() {
-  const [maxColumns, setMaxColumns] = useState(40);
-  const params = {
-    indentation: "  ",
-    maxColumns,
-  };
-  const lines = TextTree.make(params).getLines(
-    getTextTreeFromSource(sampleSource),
-    0,
-    null
-  );
   return (
     <div
       style={{
@@ -91,18 +10,7 @@ export default function App() {
         color: colors.white,
         whiteSpace: "pre",
       }}
-    >
-      <input
-        type="number"
-        value={maxColumns}
-        onChange={(event) => setMaxColumns(Number(event.currentTarget.value))}
-      />
-      <TextTree.ViewLines
-        lines={lines}
-        params={params}
-        showLineNumbers={true}
-      />
-    </div>
+    ></div>
   );
 }
 
@@ -132,71 +40,157 @@ export const styleInputSeamless: React.CSSProperties = {
   outline: "none",
 };
 
-const sampleSource: Source.Term = {
-  type: "pi",
-  head: "boolean",
-  from: { type: "reference", reference: "type" },
-  to: {
-    type: "pi",
-    head: "true",
-    from: { type: "reference", reference: "boolean" },
-    to: {
-      type: "pi",
-      head: "false",
-      from: { type: "reference", reference: "boolean" },
-      to: {
-        type: "pi",
-        head: "not",
-        from: {
-          type: "pi",
-          head: "",
-          from: { type: "reference", reference: "boolean" },
-          to: { type: "reference", reference: "boolean" },
-        },
-        to: {
-          type: "pi",
-          head: "and",
-          from: {
-            type: "pi",
-            head: "",
-            from: { type: "reference", reference: "boolean" },
-            to: {
-              type: "pi",
-              head: "",
-              from: { type: "reference", reference: "boolean" },
-              to: { type: "reference", reference: "boolean" },
-            },
+type TermTemplate<Inside> =
+  | { type: "reference"; reference: string }
+  | { type: "application"; left: Inside; right: Inside }
+  | { type: "lambda"; head: string; body: Inside };
+
+namespace simple {
+  type Term = [TermTemplate<Term>];
+  function replace(old: string, new_: Term, [term]: Term): Term {
+    switch (term.type) {
+      case "reference": {
+        if (term.reference === old) return new_;
+        else return [{ type: "reference", reference: term.reference }];
+      }
+      case "application": {
+        return [
+          {
+            type: "application",
+            left: replace(old, new_, term.left),
+            right: replace(old, new_, term.right),
           },
-          to: {
-            type: "pi",
-            head: "or",
-            from: {
-              type: "pi",
-              head: "",
-              from: { type: "reference", reference: "boolean" },
-              to: {
-                type: "pi",
-                head: "",
-                from: { type: "reference", reference: "boolean" },
-                to: { type: "reference", reference: "boolean" },
-              },
+        ];
+      }
+      case "lambda": {
+        if (term.head === old)
+          return [
+            {
+              type: "lambda",
+              head: term.head,
+              body: term.body,
             },
-            to: {
-              type: "application",
-              left: { type: "reference", reference: "not" },
-              right: {
+          ];
+        else
+          return [
+            {
+              type: "lambda",
+              head: term.head,
+              body: replace(old, new_, term.body),
+            },
+          ];
+      }
+    }
+  }
+  function evaluate([term]: Term): Term {
+    switch (term.type) {
+      case "reference":
+        throw new Error(`cannot evaluate ${JSON.stringify(term)}`);
+      case "application": {
+        const [left] = evaluate(term.left);
+        if (left.type !== "lambda")
+          throw new Error(`cannot evaluate ${JSON.stringify(term)}`);
+        return evaluate(replace(left.head, term.right, left.body));
+      }
+      case "lambda":
+        return [term];
+    }
+  }
+}
+
+namespace explorable {
+  type Term = [TermTemplate<Step>];
+  type Step = Final | Replace;
+  class Lazy<T> {
+    constructor(private operation: () => T) {}
+    state: { type: "uncalculated" } | { type: "calculated"; value: T } = {
+      type: "uncalculated",
+    };
+    get value() {
+      switch (this.state.type) {
+        case "calculated":
+          return this.state.value;
+        case "uncalculated": {
+          const value = this.operation();
+          this.state = { type: "calculated", value };
+          return value;
+        }
+        default:
+          throw new Error("invalid state");
+      }
+    }
+  }
+  interface Explorable<T> {
+    inside: T;
+  }
+  class Final implements Explorable<Term> {
+    constructor(public term: Term) {}
+    get inside() {
+      return this.term;
+    }
+  }
+  class Replace implements Explorable<Term> {
+    constructor(public old: string, public new_: Term, public term: Term) {}
+    get inside() {
+      return this.result.value;
+    }
+    result = new Lazy(
+      (): Term => {
+        const {
+          old,
+          new_,
+          term: [term],
+        } = this;
+        switch (term.type) {
+          case "reference": {
+            if (term.reference === old) return new_;
+            else return [{ type: "reference", reference: term.reference }];
+          }
+          case "application": {
+            return [
+              {
                 type: "application",
-                left: {
-                  type: "application",
-                  left: { type: "reference", reference: "and" },
-                  right: { type: "reference", reference: "false" },
-                },
-                right: { type: "reference", reference: "true" },
+                left: new Replace(old, new_, term.left.inside),
+                right: new Replace(old, new_, term.right.inside),
               },
-            },
-          },
-        },
-      },
-    },
-  },
-};
+            ];
+          }
+          case "lambda": {
+            if (term.head === old)
+              return [
+                {
+                  type: "lambda",
+                  head: term.head,
+                  body: term.body,
+                },
+              ];
+            else
+              return [
+                {
+                  type: "lambda",
+                  head: term.head,
+                  body: new Replace(old, new_, term.body.inside),
+                },
+              ];
+          }
+        }
+      }
+    );
+  }
+  function evaluate([term]: Term): Term {
+    switch (term.type) {
+      case "reference":
+        throw new Error(`cannot evaluate ${JSON.stringify(term)}`);
+      case "application": {
+        const [left] = evaluate(term.left.inside);
+        if (left.type !== "lambda")
+          throw new Error(`cannot evaluate ${JSON.stringify(term)}`);
+        return evaluate(
+          new Replace(left.head, term.right.inside, left.body.inside).inside
+        );
+      }
+      case "lambda":
+        return [term];
+    }
+  }
+}
