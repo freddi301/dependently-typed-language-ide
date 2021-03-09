@@ -1,14 +1,8 @@
 import React, { useState } from "react";
 
-type JSONBranch<Inside> = Array<Inside> | Record<string, Inside>;
-type JSONLeaf = boolean | number | string;
-type JSON = JSONLeaf | JSONBranch<JSONLeaf>;
+type Json = boolean | number | string | Json[] | { [property: string]: Json };
 
-type Codec<T> = {
-  fromJSON(data: JSON): T;
-  toJSON(data: T): JSON;
-};
-export type TOfCodec<C extends Codec<any>> = C extends Codec<infer T>
+export type TOfMagic<C extends Magic<any>> = C extends Magic<infer T>
   ? T
   : never;
 
@@ -17,23 +11,22 @@ type EditableComponent<T> = React.ComponentType<{
   onChange(value: T): void;
 }>;
 
-type Magic<T> = {
-  codec: Codec<T>;
+export type Magic<T> = {
+  fromJSON(data: Json): T;
+  toJSON(data: T): Json;
   default: T;
   EditableComponent: EditableComponent<T>;
 };
 
 export const boolean: Magic<boolean> = {
-  codec: {
-    fromJSON(data) {
-      if (typeof data === "boolean") {
-        return data;
-      }
-      throw new Error();
-    },
-    toJSON(data) {
+  fromJSON(data) {
+    if (typeof data === "boolean") {
       return data;
-    },
+    }
+    throw new Error();
+  },
+  toJSON(data) {
+    return data;
   },
   default: false,
   EditableComponent({ value, onChange }) {
@@ -48,16 +41,14 @@ export const boolean: Magic<boolean> = {
 };
 
 export const number: Magic<number> = {
-  codec: {
-    fromJSON(data) {
-      if (typeof data === "number") {
-        return data;
-      }
-      throw new Error();
-    },
-    toJSON(data) {
+  fromJSON(data) {
+    if (typeof data === "number") {
       return data;
-    },
+    }
+    throw new Error();
+  },
+  toJSON(data) {
+    return data;
   },
   default: 0,
   EditableComponent({ value, onChange }) {
@@ -77,16 +68,14 @@ export const number: Magic<number> = {
 };
 
 export const string: Magic<string> = {
-  codec: {
-    fromJSON(data) {
-      if (typeof data === "string") {
-        return data;
-      }
-      throw new Error();
-    },
-    toJSON(data) {
+  fromJSON(data) {
+    if (typeof data === "string") {
       return data;
-    },
+    }
+    throw new Error();
+  },
+  toJSON(data) {
+    return data;
   },
   default: "",
   EditableComponent({ value, onChange }) {
@@ -102,16 +91,14 @@ export const string: Magic<string> = {
 
 export function array<T>(item: Magic<T>): Magic<Array<T>> {
   return {
-    codec: {
-      fromJSON(data) {
-        if (data instanceof Array) {
-          return data.map(item.codec.fromJSON);
-        }
-        throw new Error();
-      },
-      toJSON(data) {
-        return data.map(item.codec.toJSON) as JSON;
-      },
+    fromJSON(data) {
+      if (data instanceof Array) {
+        return data.map(item.fromJSON);
+      }
+      throw new Error();
+    },
+    toJSON(data) {
+      return data.map(item.toJSON) as Json;
     },
     default: [],
     EditableComponent({ value, onChange }) {
@@ -190,29 +177,24 @@ export function array<T>(item: Magic<T>): Magic<Array<T>> {
 
 export function object<T extends Record<string, Magic<any>>>(
   entries: T
-): Magic<{ [K in keyof T]: TOfCodec<T[K]["codec"]> }> {
+): Magic<{ [K in keyof T]: TOfMagic<T[K]> }> {
   return {
-    codec: {
-      fromJSON(data) {
-        if (typeof data === "object" && !(data instanceof Array)) {
-          return Object.fromEntries(
-            Object.entries(entries).map(([k, c]) => [
-              k,
-              c.codec.fromJSON(data[k]),
-            ])
-          ) as { [K in keyof T]: TOfCodec<T[K]["codec"]> };
-        }
-        throw new Error();
-      },
-      toJSON(data) {
+    fromJSON(data) {
+      if (typeof data === "object" && !(data instanceof Array)) {
         return Object.fromEntries(
-          Object.entries(entries).map(([k, c]) => [k, c.codec.toJSON(data[k])])
-        ) as JSON;
-      },
+          Object.entries(entries).map(([k, c]) => [k, c.fromJSON(data[k])])
+        ) as { [K in keyof T]: TOfMagic<T[K]> };
+      }
+      throw new Error();
+    },
+    toJSON(data) {
+      return Object.fromEntries(
+        Object.entries(entries).map(([k, c]) => [k, c.toJSON(data[k])])
+      ) as Json;
     },
     default: Object.fromEntries(
       Object.entries(entries).map(([k, v]) => [k, v.default])
-    ) as { [K in keyof T]: TOfCodec<T[K]["codec"]> },
+    ) as { [K in keyof T]: TOfMagic<T[K]> },
     EditableComponent({ value, onChange }) {
       return (
         <>
@@ -257,4 +239,58 @@ function Dropdown({
       )}
     </div>
   );
+}
+
+export function enumeration<C extends Record<string, Magic<any>>>(
+  cases: C,
+  default_: keyof C
+): Magic<{ [K in keyof C]: { type: K; payload: TOfMagic<C[K]> } }[keyof C]> {
+  return {
+    fromJSON(data) {
+      if (
+        typeof data === "object" &&
+        !(data instanceof Array) &&
+        cases[data.type as keyof C]
+      ) {
+        return {
+          type: data.type,
+          payload: cases[data.type as keyof C].fromJSON(data.payload),
+        } as {
+          [K in keyof C]: { type: K; payload: TOfMagic<C[K]> };
+        }[keyof C];
+      }
+      throw new Error();
+    },
+    toJSON(data) {
+      return {
+        type: data.type,
+        payload: cases[data.type].toJSON(data.payload),
+      } as Json;
+    },
+    default: { type: default_, payload: cases[default_].default },
+    EditableComponent({ value, onChange }) {
+      const PayloadComponent = cases[value.type].EditableComponent;
+      return (
+        <>
+          <select
+            value={value.type as string}
+            onChange={(event) => {
+              const key = event.currentTarget.value as keyof C;
+              onChange({ type: key, payload: cases[key].default });
+            }}
+          >
+            {Object.entries(cases).map(([k, v]) => {
+              return <option key={k}>{k}</option>;
+            })}
+          </select>
+          <div style={{ marginLeft: "2ch" }}>
+            <PayloadComponent
+              value={value.payload}
+              onChange={(p) => onChange({ type: value.type, payload: p })}
+            />
+          </div>
+        </>
+      );
+    },
+  };
 }

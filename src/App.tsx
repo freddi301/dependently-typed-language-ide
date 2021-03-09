@@ -1,20 +1,40 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import * as Composer from "./components/Composer";
+import * as SimpleLazy from "./components/SimpleLazy";
 
-const Person = Composer.object({
-  name: Composer.string,
-  surname: Composer.string,
-  age: Composer.number,
-  alive: Composer.boolean,
-  toys: Composer.array(Composer.string),
-});
+export type SourceTerm =
+  | { type: "reference"; payload: string }
+  | { type: "application"; payload: { left: SourceTerm; right: SourceTerm } }
+  | { type: "lambda"; payload: { head: string; body: SourceTerm } };
 
-const People = Composer.array(Person);
+const SourceTerm: Composer.Magic<SourceTerm> = Composer.enumeration(
+  {
+    reference: Composer.string,
+    get application() {
+      return Composer.object({
+        left: SourceTerm,
+        right: SourceTerm,
+      });
+    },
+    get lambda() {
+      return Composer.object({
+        head: Composer.string,
+        body: SourceTerm,
+      });
+    },
+  },
+  "reference"
+);
 
 export default function App() {
-  const [state, setState] = useState<Composer.TOfCodec<typeof People["codec"]>>(
-    []
-  );
+  const [state, setState] = useState<SourceTerm>(SourceTerm.default);
+  const evaluated = useMemo(() => {
+    try {
+      return SimpleLazy.evaluate(state);
+    } catch (error) {
+      return null;
+    }
+  }, [state]);
   return (
     <div
       style={{
@@ -25,7 +45,11 @@ export default function App() {
         whiteSpace: "pre",
       }}
     >
-      <People.EditableComponent value={state} onChange={setState} />
+      <SourceTerm.EditableComponent value={state} onChange={setState} />
+      {evaluated && (
+        <SourceTerm.EditableComponent value={evaluated} onChange={() => {}} />
+      )}
+      <pre>{JSON.stringify(evaluated)}</pre>
     </div>
   );
 }
