@@ -1,40 +1,7 @@
 import React, { useMemo, useState } from "react";
-import * as Composer from "./components/Composer";
-import * as SimpleLazy from "./components/SimpleLazy";
-
-export type SourceTerm =
-  | { type: "reference"; payload: string }
-  | { type: "application"; payload: { left: SourceTerm; right: SourceTerm } }
-  | { type: "lambda"; payload: { head: string; body: SourceTerm } };
-
-const SourceTerm: Composer.Magic<SourceTerm> = Composer.enumeration(
-  {
-    reference: Composer.string,
-    get application() {
-      return Composer.object({
-        left: SourceTerm,
-        right: SourceTerm,
-      });
-    },
-    get lambda() {
-      return Composer.object({
-        head: Composer.string,
-        body: SourceTerm,
-      });
-    },
-  },
-  "reference"
-);
+import { TermEditor } from "./core/type-edit";
 
 export default function App() {
-  const [state, setState] = useState<SourceTerm>(SourceTerm.default);
-  const evaluated = useMemo(() => {
-    try {
-      return SimpleLazy.evaluate(state);
-    } catch (error) {
-      return null;
-    }
-  }, [state]);
   return (
     <div
       style={{
@@ -45,11 +12,7 @@ export default function App() {
         whiteSpace: "pre",
       }}
     >
-      <SourceTerm.EditableComponent value={state} onChange={setState} />
-      {evaluated && (
-        <SourceTerm.EditableComponent value={evaluated} onChange={() => {}} />
-      )}
-      <pre>{JSON.stringify(evaluated)}</pre>
+      <TermEditor />
     </div>
   );
 }

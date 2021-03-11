@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+/*
 type Json = boolean | number | string | Json[] | { [property: string]: Json };
 
 export type TOfMagic<C extends Magic<any>> = C extends Magic<infer T>
@@ -294,3 +294,4 @@ export function enumeration<C extends Record<string, Magic<any>>>(
     },
   };
 }
+*/
