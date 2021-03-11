@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from "react";
-import { TermEditor } from "./core/type-edit";
+import React from "react";
+import { TermEditor } from "./core/types/edit";
 
 export default function App() {
   return (

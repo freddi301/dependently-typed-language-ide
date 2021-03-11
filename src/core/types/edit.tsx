@@ -1,68 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { colors, styleInputSeamless } from "../App";
-import { SourceTerm } from "./type";
-
-type SourceTermPath = Array<string>;
-
-function isEqualPath(a: SourceTermPath, b: SourceTermPath): boolean {
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
-
-function getByPath(term: SourceTerm, path: SourceTermPath): SourceTerm {
-  const [head, ...tail] = path;
-  if (head === undefined) {
-    return term;
-  }
-  if (head in term) {
-    return getByPath((term as any)[head], tail);
-  }
-  throw new Error("invalid path");
-}
-
-function setByPath(
-  term: SourceTerm,
-  path: SourceTermPath,
-  new_: SourceTerm
-): SourceTerm {
-  const [head, ...tail] = path;
-  if (head === undefined) {
-    return new_;
-  }
-  if (head in term) {
-    return { ...term, [head]: setByPath((term as any)[head], tail, new_) };
-  }
-  throw new Error("invalid path");
-}
-
-function getByEntryPath(
-  source: Record<string, SourceTerm>,
-  { entry, path }: { entry: string; path: SourceTermPath }
-): SourceTerm {
-  const term = source[entry];
-  if (!term) throw new Error();
-  return getByPath(term, path);
-}
-
-function setByEntryPath(
-  source: Record<string, SourceTerm>,
-  { entry, path }: { entry: string; path: SourceTermPath },
-  new_: SourceTerm
-): Record<string, SourceTerm> {
-  if (path.length === 0) {
-    return { ...source, [entry]: new_ };
-  }
-  const term = source[entry];
-  if (!term) throw new Error();
-  return { ...source, [entry]: setByPath(term, path, new_) };
-}
+import { colors, styleInputSeamless } from "../../App";
+import {
+  getByEntryPath,
+  isEqualEntryPath,
+  setByEntryPath,
+  SourceTermEntryPath,
+} from "./path";
+import { SourceTerm } from "./term";
 
 type EditorState = {
   source: Record<string, SourceTerm>;
-  cursor: { entry: string; path: SourceTermPath } | null;
+  cursor: SourceTermEntryPath | null;
 };
 
 export function TermEditor() {
@@ -153,7 +101,7 @@ export function TermEditor() {
     };
     document.addEventListener("keydown", onKeydown);
     return () => document.removeEventListener("keydown", onKeydown);
-  }, [choiceIndex, choices, state, termUnderCursor]);
+  }, [choiceIndex, choices, showChoices, state, termUnderCursor]);
   const wrapAutocompletion = (
     hasCursor: boolean,
     children: React.ReactNode
@@ -198,12 +146,11 @@ export function TermEditor() {
   function viewTerm(
     term: SourceTerm,
     parens: boolean,
-    { entry, path }: { entry: string; path: SourceTermPath }
+    { entry, path }: SourceTermEntryPath
   ) {
-    const hasCursor =
-      state.cursor && state.cursor.entry === entry
-        ? isEqualPath(path, state.cursor.path)
-        : false;
+    const hasCursor = state.cursor
+      ? isEqualEntryPath({ entry, path }, state.cursor)
+      : false;
     const borderBottom = hasCursor ? `2px solid ${colors.blue}` : "none";
     switch (term.type) {
       case "type":
