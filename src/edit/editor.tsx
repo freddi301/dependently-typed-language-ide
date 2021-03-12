@@ -1,4 +1,4 @@
-import { useLayoutEffect, useReducer } from "react";
+import { useLayoutEffect, useMemo, useReducer } from "react";
 import { colors } from "../App";
 import { EmulatedInput, emulatedInputReducer, EmulatedInputState } from "./emulated-input";
 import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents, ViewKeyCombination } from "./key-combinations";
@@ -6,6 +6,7 @@ import { getOperationForKeyCombination, getPossibleKeyboardOperations } from "./
 import { operations } from "./operations";
 import * as Path from "../core/path";
 import * as Source from "../core/source";
+import { getType, getValue, prepareScope, unprepareTerm } from "../core/compute";
 
 export function Editor() {
   const [state, dispatch] = useReducer(editorReducer, emptyState);
@@ -19,15 +20,33 @@ export function Editor() {
   }, []);
   const viewTerm = makeViewTerm(state);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
+  // const termUnderCursor = state.cursor.type === "entry" && Source.fluentScope(state.source).get(state.cursor.path).term;
+  const preparedScope = prepareScope(state.source);
+  let value;
+  let type;
+  if (state.cursor.type === "top-empty") {
+    try {
+      value = getValue(preparedScope[state.cursor.input.text]?.value as any, preparedScope);
+    } catch (error) {}
+    try {
+      type = getType(preparedScope[state.cursor.input.text]?.value as any, preparedScope);
+    } catch (error) {}
+  }
   return (
     <div style={{ width: "100%", height: "100%", backgroundColor: colors.background, color: colors.white, whiteSpace: "pre" }}>
       <div>
         {Object.entries(state.source).map(([entry, { type, value }]) => {
+          const showType =
+            !Source.isNullTerm(type) ||
+            (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === "type");
+          const showValue =
+            !Source.isNullTerm(value) ||
+            (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === "value");
           return (
-            <div key={entry}>
+            <div key={entry} style={{ height: "1rem", lineHeight: "1rem" }}>
               {entry}
-              {type && <> : {viewTerm(type, false, { entry, level: "type", relative: [] })}</>}
-              {value && <> = {viewTerm(value, false, { entry, level: "value", relative: [] })}</>}
+              {type && showType && <> : {viewTerm(type, false, { entry, level: "type", relative: [] })}</>}
+              {value && showValue && <> = {viewTerm(value, false, { entry, level: "value", relative: [] })}</>}
             </div>
           );
         })}
@@ -43,6 +62,17 @@ export function Editor() {
           );
         })}
       </div>
+      {/* <pre>{JSON.stringify(termUnderCursor, null, 2)}</pre> */}
+      {value && (
+        <pre>
+          value {viewTerm(unprepareTerm(value), true, { entry: "*", level: "value", relative: [] })} {JSON.stringify(value, null, 2)}
+        </pre>
+      )}{" "}
+      {type && (
+        <pre>
+          type {viewTerm(unprepareTerm(type), true, { entry: "*", level: "type", relative: [] })} {JSON.stringify(type, null, 2)}
+        </pre>
+      )}
     </div>
   );
 }

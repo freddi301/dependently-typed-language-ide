@@ -3,6 +3,7 @@ import { EmulatedInputState } from "./emulated-input";
 import * as Source from "../core/source";
 import * as Path from "../core/path";
 
+// TODO should not use throw
 type Operation = (state: EditorState) => EditorState;
 
 const emptyReference: Source.Term = { type: "reference", identifier: "" };
@@ -60,10 +61,11 @@ function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
     if (state.cursor.type !== "top-empty") throw new Error();
     const entry = state.cursor.input.text;
     if (!entry) throw new Error();
+    if (state.source[entry]) throw new Error();
     if (!isCursorAtEnd(state.cursor.input)) throw new Error();
     return {
       ...state,
-      source: Source.fluentScope(state.source).set({ entry, level, relative: [] }, emptyReference).scope,
+      source: Source.fluentScope(state.source).add(entry).scope,
       cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
     };
   };

@@ -9,6 +9,10 @@ export type Term =
 
 export type Scope = Record<string, { type: Term; value: Term }>;
 
+export function isNullTerm(term: Term): boolean {
+  return term.type === "reference" && term.identifier === "";
+}
+
 function getByRelativePath(term: Term, path: Path.Relative): Term {
   const [head, ...tail] = path;
   if (head === undefined) {
