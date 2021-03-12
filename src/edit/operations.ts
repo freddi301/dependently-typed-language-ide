@@ -60,7 +60,6 @@ function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
     if (state.cursor.type !== "top-empty") throw new Error();
     const entry = state.cursor.input.text;
     if (!entry) throw new Error();
-    if (state.source[entry]) throw new Error();
     if (!isCursorAtEnd(state.cursor.input)) throw new Error();
     return {
       ...state,

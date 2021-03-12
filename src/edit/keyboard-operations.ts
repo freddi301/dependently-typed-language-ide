@@ -13,8 +13,8 @@ export const keyboardOperations: {
   // operation name order is important
   Enter: { addEntry: null, turnIntoType: null },
   Escape: { resetCursor: null },
-  ":": { addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null, moveCursorToType: null },
-  "=": { addEntryThenCursorToValue: null, turnIntoLambdaHeadThenCursorToFrom: null, moveCursorToValue: null },
+  ":": { moveCursorToType: null, addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
+  "=": { moveCursorToValue: null, addEntryThenCursorToValue: null, turnIntoLambdaHeadThenCursorToFrom: null },
   "-": { turnIntoPiFromThenCursorToTo: null },
   " ": { turnIntoApplicationLeftThenCursorToRight: null },
   ArrowLeft: { navigateLeft: null },

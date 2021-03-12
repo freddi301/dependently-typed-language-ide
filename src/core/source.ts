@@ -7,7 +7,7 @@ export type Term =
   | { type: "pi"; head: string; from: Term; to: Term }
   | { type: "lambda"; head: string; from: Term; body: Term };
 
-export type Scope = Record<string, { type?: Term; value?: Term }>;
+export type Scope = Record<string, { type: Term; value: Term }>;
 
 function getByRelativePath(term: Term, path: Path.Relative): Term {
   const [head, ...tail] = path;
@@ -38,12 +38,13 @@ function getByAbsolutePath(scope: Scope, { entry, level, relative: path }: Path.
 }
 
 function setByAbsolutePath(scope: Scope, { entry, level, relative: path }: Path.Absolute, new_: Term): Scope {
+  const e = scope[entry];
+  if (!e) throw new Error();
   if (path.length === 0) {
-    return { ...scope, [entry]: { [level]: new_ } };
+    return { ...scope, [entry]: { ...e, [level]: new_ } };
   }
-  const term = scope[entry]?.[level];
-  if (!term) throw new Error();
-  return { ...scope, [entry]: { [level]: setByRelativePath(term, path, new_) } };
+  const term = e[level];
+  return { ...scope, [entry]: { ...e, [level]: setByRelativePath(term, path, new_) } };
 }
 
 export function fluentTerm(term: Term) {
@@ -68,7 +69,10 @@ export function fluentScope(scope: Scope) {
       return fluentScope(setByAbsolutePath(scope, path, new_));
     },
     add(entry: string) {
-      return fluentScope({ ...scope, [entry]: {} });
+      return fluentScope({
+        ...scope,
+        [entry]: { type: { type: "reference", identifier: "" }, value: { type: "reference", identifier: "" } },
+      });
     },
   };
 }
