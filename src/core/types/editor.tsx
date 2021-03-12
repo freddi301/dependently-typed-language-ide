@@ -1,8 +1,9 @@
 import { useLayoutEffect, useReducer } from "react";
 import { colors } from "../../App";
 import { EmulatedInput, emulatedInputReducer, EmulatedInputState } from "./emulated-input";
-import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents } from "./key-combinations";
-import { getOperationForKeyCombination } from "./keyboard-operations";
+import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents, ViewKeyCombination } from "./key-combinations";
+import { getOperationForKeyCombination, getPossibleKeyboardOperations } from "./keyboard-operations";
+import { operations } from "./operations";
 import * as Path from "./path";
 import * as Source from "./source";
 
@@ -17,6 +18,7 @@ export function Editor() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
   const viewTerm = makeViewTerm(state);
+  const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   return (
     <div>
       <div>
@@ -29,6 +31,16 @@ export function Editor() {
         })}
       </div>
       {state.cursor.type === "top-empty" && <EmulatedInput state={state.cursor.input} />}
+      <div style={{ backgroundColor: colors.backgroundDark }}>
+        {possibleKeyboardOperations.map(({ keyCombination, operation }) => {
+          return (
+            <div key={keyCombination}>
+              <ViewKeyCombination keyCombination={keyCombination} />
+              {operation}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -42,8 +54,8 @@ type EditorAction = { type: "keydown"; payload: KeyCombinationComponents };
 const emptyState: EditorState = { source: {}, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
-  const newState = getOperationForKeyCombination(action.payload, state);
-  if (newState) return newState;
+  const operation = getOperationForKeyCombination(action.payload, state);
+  if (operation) return operations[operation](state);
   if (state.cursor.type === "top-empty") {
     return {
       source: state.source,

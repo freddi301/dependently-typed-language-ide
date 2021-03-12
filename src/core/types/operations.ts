@@ -27,6 +27,7 @@ const addEntry: Operation = (state) => {
 };
 
 const resetCursor: Operation = (state) => {
+  if (state.cursor.type === "top-empty") throw new Error();
   return {
     ...state,
     cursor: { type: "top-empty", input: emptyInput },

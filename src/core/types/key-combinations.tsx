@@ -79,7 +79,7 @@ export function getKeyCombinationComponentsFromEvent(event: KeyboardEvent): KeyC
   return { ctrl: event.ctrlKey, shift: event.shiftKey, alt: event.altKey, key: event.key as All };
 }
 
-function getKeyCombinationComponentsFromKeyCombination(keyCombination: KeyCombination): KeyCombinationComponents {
+export function getKeyCombinationComponentsFromKeyCombination(keyCombination: KeyCombination): KeyCombinationComponents {
   const match = keyCombination.match(/(ctrl-)?(shift-)?(alt-)?(.*)/);
   if (!match) throw new Error();
   if (!match[4]) throw new Error();
@@ -95,21 +95,35 @@ export function getKeyCombinationFromKeyCombinationComponents({ ctrl, shift, alt
   return `${ctrl ? "ctrl-" : ""}${shift ? "shift-" : ""}${alt ? "alt-" : ""}${key}` as KeyCombination;
 }
 
-export function ViewKeyCombination({ keyCombination }: { keyCombination: KeyCombination }) {
-  const { ctrl, shift, alt, key } = getKeyCombinationComponentsFromKeyCombination(keyCombination);
+export function ViewKeyCombination(props: { keyCombination: KeyCombination } | { keyCombinationComponents: KeyCombinationComponents }) {
+  const { ctrl, shift, alt, key } =
+    "keyCombinationComponents" in props
+      ? props.keyCombinationComponents
+      : getKeyCombinationComponentsFromKeyCombination(props.keyCombination);
   const style: React.CSSProperties = {
     border: `1px solid ${colors.white}`,
     borderRadius: "4px",
     backgroundColor: colors.backgroundDark,
-    margin: "0 2px",
+    margin: "-1px 2px",
     padding: "0 0.5ch",
   };
   return (
-    <>
+    <span style={{ display: "inline-block", transform: "scale(0.8)" }}>
       {ctrl && <span style={style}>ctrl</span>}
       {shift && <span style={style}>shift</span>}
       {alt && <span style={style}>alt</span>}
-      <span style={style}>{key}</span>
-    </>
+      <span style={style}>{keyLabelMap[key] ?? key}</span>
+    </span>
   );
 }
+
+const keyLabelMap: Record<string, string> = {
+  Escape: "Esc",
+  Enter: "⏎",
+  ArrowLeft: "←",
+  ArrowUp: "↑",
+  ArrowRight: "→",
+  ArrowDown: "↓",
+  Backspace: "⌫",
+  Delete: "⌦",
+};
