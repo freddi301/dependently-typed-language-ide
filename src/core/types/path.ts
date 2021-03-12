@@ -21,6 +21,9 @@ export function fluent(absolute: Absolute) {
   const { entry, level, relative } = absolute;
   return {
     path: absolute,
+    last() {
+      return relative[relative.length - 1];
+    },
     isEqual(other: Absolute) {
       return isEqualAbsolutePath(absolute, other);
     },

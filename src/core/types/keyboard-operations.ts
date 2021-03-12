@@ -14,6 +14,13 @@ export const keyboardOperations: {
   Escape: { resetCursor: null },
   ":": { addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
   "-": { turnIntoPiFromThenCursorToTo: null },
+  " ": { turnIntoApplicationLeftThenCursorToRight: null },
+  ArrowLeft: { navigateLeft: null },
+  ArrowUp: { navigateUp: null },
+  ArrowDown: { navigateDown: null },
+  ArrowRight: { navigateRight: null },
+  Tab: { navigateIntoRight: null },
+  Backspace: { replaceWithEmptyReference: null },
 };
 
 export function getOperationForKeyCombination(

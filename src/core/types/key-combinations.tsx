@@ -67,9 +67,9 @@ type Control = "Control" | "Shift" | "Alt";
 
 type Arrow = `Arrow${"Left" | "Up" | "Right" | "Down"}`;
 
-type Punctuation = ":" | "." | "," | ";";
+type Punctuation = ":" | "." | "," | ";" | "?" | "!";
 
-type Other = "Enter" | "Escape" | "Backspace" | "Delete" | "-";
+type Other = "Enter" | "Escape" | "Backspace" | "Delete" | "-" | " " | "Tab";
 
 type All = Alpha | Numeric | Punctuation | Control | Arrow | Other;
 

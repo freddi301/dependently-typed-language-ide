@@ -71,6 +71,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
         cursor: { ...state.cursor, cursor },
       };
     }
+    if (term.type === "pi") {
+      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
+      return {
+        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
+        cursor: { ...state.cursor, cursor },
+      };
+    }
   }
   return state;
 }
@@ -84,7 +91,7 @@ function makeViewTerm(state: EditorState) {
     const parens = (symbol: string) =>
       showParens && (
         <span style={{ color: colors.purple }} onClick={cursorHere}>
-          (
+          {symbol}
         </span>
       );
     const punctuation = (symbol: string) => (
@@ -95,7 +102,7 @@ function makeViewTerm(state: EditorState) {
     switch (term.type) {
       case "type": {
         return (
-          <span style={{ color: colors.purple, borderBottom }} onClick={cursorHere} onFocus={cursorHere}>
+          <span style={{ color: colors.purple, borderBottom }} onClick={cursorHere}>
             type<sub>{term.universe}</sub>
           </span>
         );
@@ -107,7 +114,6 @@ function makeViewTerm(state: EditorState) {
         return (
           <span
             onClick={cursorHere}
-            onFocus={cursorHere}
             style={{
               color: term.identifier === "" ? colors.gray : colors.white,
               borderBottom,
@@ -135,7 +141,11 @@ function makeViewTerm(state: EditorState) {
             {term.head || hasCursor ? (
               <>
                 {punctuation("(")}
-                <>{term.head}</>
+                {hasCursor && state.cursor.type === "entry" ? (
+                  <EmulatedInput state={{ text: term.head, cursor: state.cursor.cursor }} />
+                ) : (
+                  term.head
+                )}
                 {punctuation(" : ")}
                 {viewTerm(term.from, false, childPath("from"))}
                 {punctuation(")")}
