@@ -1,5 +1,5 @@
 import React from "react";
-import { TermEditor } from "./core/types/edit";
+import { Editor } from "./core/types/editor";
 
 export default function App() {
   return (
@@ -12,7 +12,7 @@ export default function App() {
         whiteSpace: "pre",
       }}
     >
-      <TermEditor />
+      <Editor />
     </div>
   );
 }

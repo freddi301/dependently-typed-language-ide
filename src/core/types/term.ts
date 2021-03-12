@@ -4,12 +4,16 @@ export type SourceTerm =
   | { type: "application"; left: SourceTerm; right: SourceTerm }
   | { type: "pi"; head: string; from: SourceTerm; to: SourceTerm };
 
+export type SourceTermScope = Record<string, { type: SourceTerm }>;
+
 export type BoundTerm =
   | { type: "free"; identifier: string }
   | { type: "type"; universe: number }
   | { type: "reference"; identifier: string }
   | { type: "application"; left: BoundTerm; right: BoundTerm }
   | { type: "pi"; head: string; from: BoundTerm; to: BoundTerm };
+
+export type BoundTermScope = Record<string, { type: BoundTerm }>;
 
 export function markFreeVariables(
   term: SourceTerm,
@@ -86,10 +90,7 @@ function replace(old: string, new_: BoundTerm, term: BoundTerm): BoundTerm {
   }
 }
 
-export function getType(
-  term: BoundTerm,
-  scope: Record<string, BoundTerm>
-): BoundTerm {
+export function getType(term: BoundTerm, scope: BoundTermScope): BoundTerm {
   switch (term.type) {
     case "free": {
       throw new Error();
@@ -98,7 +99,7 @@ export function getType(
       return { type: "type", universe: term.universe + 1 };
     }
     case "reference": {
-      const fromScope = scope[term.identifier];
+      const fromScope = scope[term.identifier]?.type;
       if (!fromScope) throw new Error("should not get here");
       return fromScope;
     }
