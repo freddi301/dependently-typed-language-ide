@@ -67,9 +67,11 @@ type Control = "Control" | "Shift" | "Alt";
 
 type Arrow = `Arrow${"Left" | "Up" | "Right" | "Down"}`;
 
-type Other = "Enter" | "Escape" | "Backspace" | "Delete" | ":";
+type Punctuation = ":" | "." | "," | ";";
 
-type All = Alpha | Numeric | Control | Arrow | Other;
+type Other = "Enter" | "Escape" | "Backspace" | "Delete" | "-";
+
+type All = Alpha | Numeric | Punctuation | Control | Arrow | Other;
 
 export type KeyCombinationComponents = { ctrl: boolean; shift: boolean; alt: boolean; key: All };
 

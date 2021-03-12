@@ -1,5 +1,5 @@
 import { EditorState } from "./editor";
-import { setByEntryPath } from "./path";
+import { getByEntryPath, setByEntryPath } from "./path";
 import { SourceTerm } from "./term";
 
 type Operation = (state: EditorState) => EditorState;
@@ -37,14 +37,35 @@ const addEntryThenCursorToType: Operation = (state) => {
   };
 };
 
-// const turnReferenceIntoPiFromThenCursorToTo: Operation = (state) => {
-//   if (state.cursor.type !== "entry") throw new Error()
-//   return {
-//     ...state,
-//     source:
-//     cursor:
-//   }
-// }
+const turnIntoPiFromThenCursorToTo: Operation = (state) => {
+  if (state.cursor.type !== "entry") throw new Error();
+  return {
+    ...state,
+    source: setByEntryPath(state.source, state.cursor.entryPath, {
+      type: "pi",
+      head: "",
+      from: getByEntryPath(state.source, state.cursor.entryPath),
+      to: emptyReference,
+    }),
+    cursor: { type: "entry", cursor: 0, entryPath: { ...state.cursor.entryPath, path: [...state.cursor.entryPath.path, "to"] } },
+  };
+};
+
+const turnIntoPiFromHeadCursorToFrom: Operation = (state) => {
+  if (state.cursor.type !== "entry") throw new Error();
+  const term = getByEntryPath(state.source, state.cursor.entryPath);
+  if (term.type !== "reference") throw new Error();
+  return {
+    ...state,
+    source: setByEntryPath(state.source, state.cursor.entryPath, {
+      type: "pi",
+      head: term.identifier,
+      from: emptyReference,
+      to: emptyReference,
+    }),
+    cursor: { type: "entry", cursor: 0, entryPath: { ...state.cursor.entryPath, path: [...state.cursor.entryPath.path, "from"] } },
+  };
+};
 
 // const moveCursorToEntry: Operation = (state) => {
 //   const entry = state.text;
@@ -73,6 +94,8 @@ export const operations = {
   addEntry,
   addEntryThenCursorToType,
   resetCursor,
+  turnIntoPiFromThenCursorToTo,
+  turnIntoPiFromHeadCursorToFrom,
   // moveCursorToEntry,
   // insertHereType,
   // insertHereReference,
