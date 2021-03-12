@@ -20,7 +20,7 @@ export const keyboardOperations: {
 } = {
   Enter: { addEntry: null },
   Escape: { resetCursor: null },
-  ":": { addEntryThenCursorToType: null, turnIntoPiFromHeadCursorToFrom: null },
+  ":": { addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
   "-": { turnIntoPiFromThenCursorToTo: null },
   // "shift-:": ["addEntryThenCursorToType"],
 };

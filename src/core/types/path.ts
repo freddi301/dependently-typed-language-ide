@@ -1,13 +1,11 @@
-import { SourceTerm, SourceTermScope } from "./term";
-
-export type SourceTermPath = Array<string>;
-export type SourceTermEntryPath = {
+export type Relative = Array<string>;
+export type Absolute = {
   entry: string;
   level: "type";
-  path: SourceTermPath;
+  relative: Relative;
 };
 
-export function isEqualPath(a: SourceTermPath, b: SourceTermPath): boolean {
+function isEqualRelativePath(a: Relative, b: Relative): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;
@@ -15,43 +13,23 @@ export function isEqualPath(a: SourceTermPath, b: SourceTermPath): boolean {
   return true;
 }
 
-export function getByPath(term: SourceTerm, path: SourceTermPath): SourceTerm {
-  const [head, ...tail] = path;
-  if (head === undefined) {
-    return term;
-  }
-  if (head in term) {
-    return getByPath((term as any)[head], tail);
-  }
-  throw new Error("invalid path");
+function isEqualAbsolutePath(a: Absolute, b: Absolute): boolean {
+  return a.entry === b.entry && isEqualRelativePath(a.relative, b.relative);
 }
 
-export function setByPath(term: SourceTerm, path: SourceTermPath, new_: SourceTerm): SourceTerm {
-  const [head, ...tail] = path;
-  if (head === undefined) {
-    return new_;
-  }
-  if (head in term) {
-    return { ...term, [head]: setByPath((term as any)[head], tail, new_) };
-  }
-  throw new Error("invalid path");
-}
-
-export function getByEntryPath(scope: SourceTermScope, { entry, level, path }: SourceTermEntryPath): SourceTerm {
-  const term = scope[entry]?.[level];
-  if (!term) throw new Error();
-  return getByPath(term, path);
-}
-
-export function setByEntryPath(scope: SourceTermScope, { entry, level, path }: SourceTermEntryPath, new_: SourceTerm): SourceTermScope {
-  if (path.length === 0) {
-    return { ...scope, [entry]: { [level]: new_ } };
-  }
-  const term = scope[entry]?.[level];
-  if (!term) throw new Error();
-  return { ...scope, [entry]: { [level]: setByPath(term, path, new_) } };
-}
-
-export function isEqualEntryPath(a: SourceTermEntryPath, b: SourceTermEntryPath): boolean {
-  return a.entry === b.entry && isEqualPath(a.path, b.path);
+export function fluent(absolute: Absolute) {
+  const { entry, level, relative } = absolute;
+  return {
+    path: absolute,
+    isEqual(other: Absolute) {
+      return isEqualAbsolutePath(absolute, other);
+    },
+    child(leaf: string) {
+      return fluent({ entry, level, relative: [...relative, leaf] });
+    },
+    parent() {
+      if (relative.length === 0) return null;
+      return fluent({ entry, level, relative: relative.slice(0, -1) });
+    },
+  };
 }

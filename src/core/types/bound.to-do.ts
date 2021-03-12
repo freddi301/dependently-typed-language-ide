@@ -1,24 +1,15 @@
-export type SourceTerm =
-  | { type: "type"; universe: number }
-  | { type: "reference"; identifier: string }
-  | { type: "application"; left: SourceTerm; right: SourceTerm }
-  | { type: "pi"; head: string; from: SourceTerm; to: SourceTerm };
+import * as Source from "./source";
 
-export type SourceTermScope = Record<string, { type: SourceTerm }>;
-
-export type BoundTerm =
+type BoundTerm =
   | { type: "free"; identifier: string }
   | { type: "type"; universe: number }
   | { type: "reference"; identifier: string }
   | { type: "application"; left: BoundTerm; right: BoundTerm }
   | { type: "pi"; head: string; from: BoundTerm; to: BoundTerm };
 
-export type BoundTermScope = Record<string, { type: BoundTerm }>;
+type BoundTermScope = Record<string, { type: BoundTerm }>;
 
-export function markFreeVariables(
-  term: SourceTerm,
-  scope: Record<string, boolean>
-): BoundTerm {
+function markFreeVariables(term: Source.Term, scope: Record<string, boolean>): BoundTerm {
   switch (term.type) {
     case "type": {
       return { type: "type", universe: term.universe };

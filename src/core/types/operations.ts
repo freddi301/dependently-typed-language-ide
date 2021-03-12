@@ -1,39 +1,48 @@
 import { EditorState } from "./editor";
-import { getByEntryPath, setByEntryPath } from "./path";
-import { SourceTerm } from "./term";
+import { EmulatedInputState } from "./emulated-input";
+import * as Source from "./source";
+import * as Path from "./path";
 
 type Operation = (state: EditorState) => EditorState;
 
-const emptyReference: SourceTerm = { type: "reference", identifier: "" };
+const emptyReference: Source.Term = { type: "reference", identifier: "" };
+
+const emptyInput: EmulatedInputState = { text: "", cursor: 0 };
+
+function isCursorAtEnd({ text, cursor }: EmulatedInputState) {
+  return cursor === text.length;
+}
 
 const addEntry: Operation = (state) => {
   if (state.cursor.type !== "top-empty") throw new Error();
-  if (!state.cursor.input.text) throw new Error();
-  if (state.source[state.cursor.input.text]) throw new Error();
-  if (state.cursor.input.cursor !== state.cursor.input.text.length) throw new Error();
+  const entry = state.cursor.input.text;
+  if (!entry) throw new Error();
+  if (state.source[entry]) throw new Error();
+  if (!isCursorAtEnd(state.cursor.input)) throw new Error();
   return {
     ...state,
-    source: setByEntryPath(state.source, { entry: state.cursor.input.text, level: "type", path: [] }, emptyReference),
-    cursor: { type: "top-empty", input: { text: "", cursor: 0 } },
+    source: Source.fluentScope(state.source).set({ entry, level: "type", relative: [] }, emptyReference).scope,
+    cursor: { type: "top-empty", input: emptyInput },
   };
 };
 
 const resetCursor: Operation = (state) => {
   return {
     ...state,
-    cursor: { type: "top-empty", input: { text: "", cursor: 0 } },
+    cursor: { type: "top-empty", input: emptyInput },
   };
 };
 
 const addEntryThenCursorToType: Operation = (state) => {
   if (state.cursor.type !== "top-empty") throw new Error();
-  if (!state.cursor.input.text) throw new Error();
-  if (state.source[state.cursor.input.text]) throw new Error();
-  if (state.cursor.input.cursor !== state.cursor.input.text.length) throw new Error();
+  const entry = state.cursor.input.text;
+  if (!entry) throw new Error();
+  if (state.source[entry]) throw new Error();
+  if (!isCursorAtEnd(state.cursor.input)) throw new Error();
   return {
     ...state,
-    source: setByEntryPath(state.source, { entry: state.cursor.input.text, level: "type", path: [] }, emptyReference),
-    cursor: { type: "entry", entryPath: { entry: state.cursor.input.text, level: "type", path: [] }, cursor: 0 },
+    source: Source.fluentScope(state.source).set({ entry, level: "type", relative: [] }, emptyReference).scope,
+    cursor: { type: "entry", path: { entry, level: "type", relative: [] }, cursor: 0 },
   };
 };
 
@@ -41,29 +50,29 @@ const turnIntoPiFromThenCursorToTo: Operation = (state) => {
   if (state.cursor.type !== "entry") throw new Error();
   return {
     ...state,
-    source: setByEntryPath(state.source, state.cursor.entryPath, {
+    source: Source.fluentScope(state.source).set(state.cursor.path, {
       type: "pi",
       head: "",
-      from: getByEntryPath(state.source, state.cursor.entryPath),
+      from: Source.fluentScope(state.source).get(state.cursor.path).term,
       to: emptyReference,
-    }),
-    cursor: { type: "entry", cursor: 0, entryPath: { ...state.cursor.entryPath, path: [...state.cursor.entryPath.path, "to"] } },
+    }).scope,
+    cursor: { type: "entry", cursor: 0, path: Path.fluent(state.cursor.path).child("to").path },
   };
 };
 
-const turnIntoPiFromHeadCursorToFrom: Operation = (state) => {
+const turnIntoPiHeadThenCursorToFrom: Operation = (state) => {
   if (state.cursor.type !== "entry") throw new Error();
-  const term = getByEntryPath(state.source, state.cursor.entryPath);
+  const term = Source.fluentScope(state.source).get(state.cursor.path).term;
   if (term.type !== "reference") throw new Error();
   return {
     ...state,
-    source: setByEntryPath(state.source, state.cursor.entryPath, {
+    source: Source.fluentScope(state.source).set(state.cursor.path, {
       type: "pi",
       head: term.identifier,
       from: emptyReference,
       to: emptyReference,
-    }),
-    cursor: { type: "entry", cursor: 0, entryPath: { ...state.cursor.entryPath, path: [...state.cursor.entryPath.path, "from"] } },
+    }).scope,
+    cursor: { type: "entry", cursor: 0, path: Path.fluent(state.cursor.path).child("from").path },
   };
 };
 
@@ -95,7 +104,7 @@ export const operations = {
   addEntryThenCursorToType,
   resetCursor,
   turnIntoPiFromThenCursorToTo,
-  turnIntoPiFromHeadCursorToFrom,
+  turnIntoPiHeadThenCursorToFrom,
   // moveCursorToEntry,
   // insertHereType,
   // insertHereReference,

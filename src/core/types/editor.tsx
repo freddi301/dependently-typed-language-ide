@@ -3,8 +3,8 @@ import { colors } from "../../App";
 import { EmulatedInput, emulatedInputReducer, EmulatedInputState } from "./emulated-input";
 import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents } from "./key-combinations";
 import { getOperationForKeyCombination } from "./keyboard-operations";
-import { getByEntryPath, isEqualEntryPath, setByEntryPath, SourceTermEntryPath } from "./path";
-import { SourceTerm, SourceTermScope } from "./term";
+import * as Path from "./path";
+import * as Source from "./source";
 
 export function Editor() {
   const [state, dispatch] = useReducer(editorReducer, emptyState);
@@ -23,7 +23,7 @@ export function Editor() {
         {Object.entries(state.source).map(([entry, { type }]) => {
           return (
             <div key={entry}>
-              {entry} : {viewTerm(type, false, { entry, level: "type", path: [] })}
+              {entry} : {viewTerm(type, false, { entry, level: "type", relative: [] })}
             </div>
           );
         })}
@@ -34,8 +34,8 @@ export function Editor() {
 }
 
 export type EditorState = {
-  source: SourceTermScope;
-  cursor: { type: "top-empty"; input: EmulatedInputState } | { type: "entry"; entryPath: SourceTermEntryPath; cursor: number };
+  source: Source.Scope;
+  cursor: { type: "top-empty"; input: EmulatedInputState } | { type: "entry"; path: Path.Absolute; cursor: number };
 };
 type EditorAction = { type: "keydown"; payload: KeyCombinationComponents };
 
@@ -51,11 +51,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
     };
   }
   if (state.cursor.type === "entry") {
-    const term = getByEntryPath(state.source, state.cursor.entryPath);
+    const term = Source.fluentScope(state.source).get(state.cursor.path).term;
     if (term.type === "reference") {
       const { text, cursor } = emulatedInputReducer({ text: term.identifier, cursor: state.cursor.cursor }, action.payload);
       return {
-        source: setByEntryPath(state.source, state.cursor.entryPath, { type: "reference", identifier: text }),
+        source: Source.fluentScope(state.source).set(state.cursor.path, { type: "reference", identifier: text }).scope,
         cursor: { ...state.cursor, cursor },
       };
     }
@@ -64,15 +64,22 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
 }
 
 function makeViewTerm(state: EditorState) {
-  function viewTerm(term: SourceTerm, parens: boolean, entryPath: SourceTermEntryPath) {
-    const hasCursor = state.cursor.type === "entry" ? isEqualEntryPath(entryPath, state.cursor.entryPath) : false;
+  function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
+    const hasCursor = state.cursor.type === "entry" ? Path.fluent(path).isEqual(state.cursor.path) : false;
     const borderBottom = hasCursor ? `2px solid ${colors.blue}` : "none";
     const cursorHere = () => {};
-    const appendPath = (leaf: string): SourceTermEntryPath => ({
-      entry: entryPath.entry,
-      level: entryPath.level,
-      path: [...entryPath.path, leaf],
-    });
+    const childPath = (leaf: string) => Path.fluent(path).child(leaf).path;
+    const parens = (symbol: string) =>
+      showParens && (
+        <span style={{ color: colors.purple }} onClick={cursorHere}>
+          (
+        </span>
+      );
+    const punctuation = (symbol: string) => (
+      <span style={{ color: colors.purple }} onClick={cursorHere}>
+        {symbol}
+      </span>
+    );
     switch (term.type) {
       case "type": {
         return (
@@ -101,50 +108,32 @@ function makeViewTerm(state: EditorState) {
       case "application": {
         return (
           <span style={{ borderBottom }}>
-            {parens && (
-              <span style={{ color: colors.purple }} onClick={cursorHere}>
-                (
-              </span>
-            )}
-            {viewTerm(term.left, term.left.type !== "application", appendPath("left"))}
-            <span onClick={cursorHere}> </span>
-            {viewTerm(term.right, true, appendPath("right"))}
-            {parens && (
-              <span style={{ color: colors.purple }} onClick={cursorHere}>
-                )
-              </span>
-            )}
+            {parens("(")}
+            {viewTerm(term.left, term.left.type !== "application", childPath("left"))}
+            {punctuation(" ")}
+            {viewTerm(term.right, true, childPath("right"))}
+            {parens(")")}
           </span>
         );
       }
       case "pi": {
         return (
           <span style={{ borderBottom }}>
-            {parens && (
-              <span style={{ color: colors.purple }} onClick={cursorHere}>
-                (
-              </span>
-            )}
+            {parens("(")}
             {term.head || hasCursor ? (
               <>
-                <span style={{ color: colors.purple }}>(</span>
-                <span>{term.head}</span>
-                {" : "}
-                {viewTerm(term.from, false, appendPath("from"))}
-                <span style={{ color: colors.purple }}>)</span>
+                {punctuation("(")}
+                <>{term.head}</>
+                {punctuation(" : ")}
+                {viewTerm(term.from, false, childPath("from"))}
+                {punctuation(")")}
               </>
             ) : (
-              viewTerm(term.from, false, appendPath("from"))
+              viewTerm(term.from, false, childPath("from"))
             )}
-            <span style={{ color: colors.purple }} onClick={cursorHere}>
-              {" -> "}
-            </span>
-            {viewTerm(term.to, false, appendPath("to"))}
-            {parens && (
-              <span style={{ color: colors.purple }} onClick={cursorHere}>
-                )
-              </span>
-            )}
+            {punctuation(" -> ")}
+            {viewTerm(term.to, false, childPath("to"))}
+            {parens(")")}
           </span>
         );
       }
