@@ -10,9 +10,11 @@ import { operations } from "./operations";
 export const keyboardOperations: {
   [K in KeyCombination]?: { [K in keyof typeof operations]?: null };
 } = {
-  Enter: { addEntry: null },
+  // operation name order is important
+  Enter: { addEntry: null, turnIntoType: null },
   Escape: { resetCursor: null },
-  ":": { addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
+  ":": { addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null, moveCursorToType: null },
+  "=": { addEntryThenCursorToValue: null, turnIntoLambdaHeadThenCursorToFrom: null, moveCursorToValue: null },
   "-": { turnIntoPiFromThenCursorToTo: null },
   " ": { turnIntoApplicationLeftThenCursorToRight: null },
   ArrowLeft: { navigateLeft: null },

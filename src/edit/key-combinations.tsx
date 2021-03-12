@@ -69,7 +69,7 @@ type Arrow = `Arrow${"Left" | "Up" | "Right" | "Down"}`;
 
 type Punctuation = ":" | "." | "," | ";" | "?" | "!";
 
-type Other = "Enter" | "Escape" | "Backspace" | "Delete" | "-" | " " | "Tab";
+type Other = "Enter" | "Escape" | "Backspace" | "Delete" | "Tab" | "-" | " " | "=";
 
 type All = Alpha | Numeric | Punctuation | Control | Arrow | Other;
 

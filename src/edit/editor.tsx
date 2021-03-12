@@ -22,10 +22,12 @@ export function Editor() {
   return (
     <div style={{ width: "100%", height: "100%", backgroundColor: colors.background, color: colors.white, whiteSpace: "pre" }}>
       <div>
-        {Object.entries(state.source).map(([entry, { type }]) => {
+        {Object.entries(state.source).map(([entry, { type, value }]) => {
           return (
             <div key={entry}>
-              {entry} : {viewTerm(type, false, { entry, level: "type", relative: [] })}
+              {entry}
+              {type && <> : {viewTerm(type, false, { entry, level: "type", relative: [] })}</>}
+              {value && <> = {viewTerm(value, false, { entry, level: "value", relative: [] })}</>}
             </div>
           );
         })}
@@ -72,6 +74,13 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
       };
     }
     if (term.type === "pi") {
+      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
+      return {
+        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
+        cursor: { ...state.cursor, cursor },
+      };
+    }
+    if (term.type === "lambda") {
       const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
       return {
         source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
@@ -155,6 +164,25 @@ function makeViewTerm(state: EditorState) {
             )}
             {punctuation(" -> ")}
             {viewTerm(term.to, false, childPath("to"))}
+            {parens(")")}
+          </span>
+        );
+      }
+      case "lambda": {
+        return (
+          <span style={{ borderBottom }}>
+            {parens("(")}
+            {punctuation("(")}
+            {hasCursor && state.cursor.type === "entry" ? (
+              <EmulatedInput state={{ text: term.head, cursor: state.cursor.cursor }} />
+            ) : (
+              term.head
+            )}
+            {punctuation(" : ")}
+            {viewTerm(term.from, false, childPath("from"))}
+            {punctuation(")")}
+            {punctuation(" => ")}
+            {viewTerm(term.body, false, childPath("body"))}
             {parens(")")}
           </span>
         );

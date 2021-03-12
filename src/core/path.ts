@@ -1,7 +1,7 @@
 export type Relative = Array<string>;
 export type Absolute = {
   entry: string;
-  level: "type";
+  level: "type" | "value";
   relative: Relative;
 };
 
@@ -14,7 +14,7 @@ function isEqualRelativePath(a: Relative, b: Relative): boolean {
 }
 
 function isEqualAbsolutePath(a: Absolute, b: Absolute): boolean {
-  return a.entry === b.entry && isEqualRelativePath(a.relative, b.relative);
+  return a.entry === b.entry && a.level === b.level && isEqualRelativePath(a.relative, b.relative);
 }
 
 export function fluent(absolute: Absolute) {

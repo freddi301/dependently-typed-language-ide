@@ -4,9 +4,10 @@ export type Term =
   | { type: "type"; universe: number }
   | { type: "reference"; identifier: string }
   | { type: "application"; left: Term; right: Term }
-  | { type: "pi"; head: string; from: Term; to: Term };
+  | { type: "pi"; head: string; from: Term; to: Term }
+  | { type: "lambda"; head: string; from: Term; body: Term };
 
-export type Scope = Record<string, { type: Term }>;
+export type Scope = Record<string, { type?: Term; value?: Term }>;
 
 function getByRelativePath(term: Term, path: Path.Relative): Term {
   const [head, ...tail] = path;
@@ -65,6 +66,9 @@ export function fluentScope(scope: Scope) {
     },
     set(path: Path.Absolute, new_: Term) {
       return fluentScope(setByAbsolutePath(scope, path, new_));
+    },
+    add(entry: string) {
+      return fluentScope({ ...scope, [entry]: {} });
     },
   };
 }

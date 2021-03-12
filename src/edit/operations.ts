@@ -25,8 +25,25 @@ const addEntry: Operation = (state) => {
   if (!isCursorAtEnd(state.cursor.input)) throw new Error();
   return {
     ...state,
-    source: Source.fluentScope(state.source).set({ entry, level: "type", relative: [] }, emptyReference).scope,
+    source: Source.fluentScope(state.source).add(entry).scope,
     cursor: { type: "top-empty", input: emptyInput },
+  };
+};
+
+const turnIntoType: Operation = (state) => {
+  if (state.cursor.type !== "entry") throw new Error();
+  const term = Source.fluentScope(state.source).get(state.cursor.path).term;
+  if (term.type !== "reference") throw new Error();
+  if (!isCursorAtEnd({ text: term.identifier, cursor: state.cursor.cursor })) throw new Error();
+  const match = term.identifier.match(/^(type)([0-9]+)?$/);
+  if (!match) throw new Error();
+  const universe = Number(match[2]) || 1;
+  return {
+    ...state,
+    source: Source.fluentScope(state.source).set(state.cursor.path, {
+      type: "type",
+      universe,
+    }).scope,
   };
 };
 
@@ -38,18 +55,40 @@ const resetCursor: Operation = (state) => {
   };
 };
 
-const addEntryThenCursorToType: Operation = (state) => {
-  if (state.cursor.type !== "top-empty") throw new Error();
-  const entry = state.cursor.input.text;
-  if (!entry) throw new Error();
-  if (state.source[entry]) throw new Error();
-  if (!isCursorAtEnd(state.cursor.input)) throw new Error();
-  return {
-    ...state,
-    source: Source.fluentScope(state.source).set({ entry, level: "type", relative: [] }, emptyReference).scope,
-    cursor: { type: "entry", path: { entry, level: "type", relative: [] }, cursor: 0 },
+function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
+  return (state) => {
+    if (state.cursor.type !== "top-empty") throw new Error();
+    const entry = state.cursor.input.text;
+    if (!entry) throw new Error();
+    if (state.source[entry]) throw new Error();
+    if (!isCursorAtEnd(state.cursor.input)) throw new Error();
+    return {
+      ...state,
+      source: Source.fluentScope(state.source).set({ entry, level, relative: [] }, emptyReference).scope,
+      cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
+    };
   };
-};
+}
+
+const addEntryThenCursorToType = makeAddEntryThenCursorTo("type");
+const addEntryThenCursorToValue = makeAddEntryThenCursorTo("value");
+
+function makeMoveCursorTo(level: "type" | "value"): Operation {
+  return (state) => {
+    if (state.cursor.type !== "top-empty") throw new Error();
+    const entry = state.cursor.input.text;
+    if (!entry) throw new Error();
+    if (!state.source[entry]?.[level]) throw new Error();
+    if (!isCursorAtEnd(state.cursor.input)) throw new Error();
+    return {
+      ...state,
+      cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
+    };
+  };
+}
+
+const moveCursorToType = makeMoveCursorTo("type");
+const moveCursorToValue = makeMoveCursorTo("value");
 
 const turnIntoPiFromThenCursorToTo: Operation = (state) => {
   if (state.cursor.type !== "entry") throw new Error();
@@ -76,6 +115,22 @@ const turnIntoPiHeadThenCursorToFrom: Operation = (state) => {
       head: term.identifier,
       from: emptyReference,
       to: emptyReference,
+    }).scope,
+    cursor: { type: "entry", cursor: 0, path: Path.fluent(state.cursor.path).child("from").path },
+  };
+};
+
+const turnIntoLambdaHeadThenCursorToFrom: Operation = (state) => {
+  if (state.cursor.type !== "entry") throw new Error();
+  const term = Source.fluentScope(state.source).get(state.cursor.path).term;
+  if (term.type !== "reference") throw new Error();
+  return {
+    ...state,
+    source: Source.fluentScope(state.source).set(state.cursor.path, {
+      type: "lambda",
+      head: term.identifier,
+      from: emptyReference,
+      body: emptyReference,
     }).scope,
     cursor: { type: "entry", cursor: 0, path: Path.fluent(state.cursor.path).child("from").path },
   };
@@ -130,6 +185,9 @@ const navigateDown: Operation = (state) => {
   if (currentFluent.term.type === "pi") {
     return { ...state, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } };
   }
+  if (currentFluent.term.type === "lambda") {
+    return { ...state, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } };
+  }
   throw new Error();
 };
 
@@ -170,6 +228,10 @@ const navigateRight: Operation = (state) => {
   if (parentFluent.term.type === "pi" && currentPathFluent.last() === "from") {
     return { ...state, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } };
   }
+  if (parentFluent.term.type === "lambda" && currentPathFluent.last() === "from") {
+    return { ...state, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("body").path } };
+  }
+
   throw new Error();
 };
 
@@ -207,35 +269,16 @@ const navigateIntoRight: Operation = (state) => {
   throw new Error();
 };
 
-// const moveCursorToEntry: Operation = (state) => {
-//   const entry = state.text;
-//   if (!(state.cursor === null && state.source[entry])) return null;
-//   return () => {
-//     return { ...state, text: "", cursor: { entry, level: "type", path: [] } };
-//   };
-// };
-
-// function makeInsertHere(term: SourceTerm): Operation {
-//   return (state) => {
-//     const { cursor } = state;
-//     if (!cursor) return null;
-//     return () => {
-//       return { ...state, source: setByEntryPath(state.source, cursor, term) };
-//     };
-//   };
-// }
-
-// const insertHereType = makeInsertHere({ type: "type", universe: 1 });
-// const insertHereReference = makeInsertHere(emptyReference);
-// const insertHereApplication = makeInsertHere({ type: "application", left: emptyReference, right: emptyReference });
-// const insertHerePi = makeInsertHere({ type: "pi", head: "", from: emptyReference, to: emptyReference });
-
 export const operations = {
   addEntry,
   addEntryThenCursorToType,
+  addEntryThenCursorToValue,
+  moveCursorToType,
+  moveCursorToValue,
   resetCursor,
   turnIntoPiFromThenCursorToTo,
   turnIntoPiHeadThenCursorToFrom,
+  turnIntoLambdaHeadThenCursorToFrom,
   navigateIntoRight,
   turnIntoApplicationLeftThenCursorToRight,
   navigateLeft,
@@ -243,9 +286,5 @@ export const operations = {
   navigateRight,
   navigateDown,
   replaceWithEmptyReference,
-  // moveCursorToEntry,
-  // insertHereType,
-  // insertHereReference,
-  // insertHereApplication,
-  // insertHerePi,
+  turnIntoType,
 };

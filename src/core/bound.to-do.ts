@@ -5,7 +5,8 @@ type BoundTerm =
   | { type: "type"; universe: number }
   | { type: "reference"; identifier: string }
   | { type: "application"; left: BoundTerm; right: BoundTerm }
-  | { type: "pi"; head: string; from: BoundTerm; to: BoundTerm };
+  | { type: "pi"; head: string; from: BoundTerm; to: BoundTerm }
+  | { type: "lambda"; head: string; from: BoundTerm; body: BoundTerm };
 
 type BoundTermScope = Record<string, { type: BoundTerm }>;
 
@@ -34,6 +35,14 @@ function markFreeVariables(term: Source.Term, scope: Record<string, boolean>): B
         head: term.head,
         from: markFreeVariables(term.from, scope),
         to: markFreeVariables(term.to, { ...scope, [term.head]: true }),
+      };
+    }
+    case "lambda": {
+      return {
+        type: "lambda",
+        head: term.head,
+        from: markFreeVariables(term.from, scope),
+        body: markFreeVariables(term.body, { ...scope, [term.head]: true }),
       };
     }
   }
@@ -78,6 +87,23 @@ function replace(old: string, new_: BoundTerm, term: BoundTerm): BoundTerm {
         };
       }
     }
+    case "lambda": {
+      if (term.head === old) {
+        return {
+          type: "lambda",
+          head: term.head,
+          from: replace(old, new_, term.from),
+          body: term.body,
+        };
+      } else {
+        return {
+          type: "lambda",
+          head: term.head,
+          from: replace(old, new_, term.from),
+          body: replace(old, new_, term.body),
+        };
+      }
+    }
   }
 }
 
@@ -110,6 +136,9 @@ export function getType(term: BoundTerm, scope: BoundTermScope): BoundTerm {
         type: "type",
         universe: Math.max(fromType.universe, toType.universe),
       };
+    }
+    case "lambda": {
+      throw new Error("TODO");
     }
   }
 }
