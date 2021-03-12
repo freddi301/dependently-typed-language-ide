@@ -1,4 +1,4 @@
-import { colors } from "../../App";
+import { colors } from "../App";
 import { KeyCombinationComponents } from "./key-combinations";
 
 export function EmulatedInput({ state: { text, cursor } }: { state: EmulatedInputState }) {

@@ -1,5 +1,5 @@
 import React from "react";
-import { colors } from "../../App";
+import { colors } from "../App";
 
 export type KeyCombination = `${"ctrl-" | ""}${"shift-" | ""}${"alt-" | ""}${All}`;
 

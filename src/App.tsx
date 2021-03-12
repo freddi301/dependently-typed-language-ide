@@ -1,5 +1,5 @@
 import React from "react";
-import { Editor } from "./core/types/editor";
+import { Editor } from "./edit/editor";
 
 export default function App() {
   return (
@@ -7,9 +7,6 @@ export default function App() {
       style={{
         width: "100vw",
         height: "100vh",
-        backgroundColor: colors.background,
-        color: colors.white,
-        whiteSpace: "pre",
       }}
     >
       <Editor />

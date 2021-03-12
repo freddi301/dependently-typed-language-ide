@@ -1,11 +1,11 @@
 import { useLayoutEffect, useReducer } from "react";
-import { colors } from "../../App";
+import { colors } from "../App";
 import { EmulatedInput, emulatedInputReducer, EmulatedInputState } from "./emulated-input";
 import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents, ViewKeyCombination } from "./key-combinations";
 import { getOperationForKeyCombination, getPossibleKeyboardOperations } from "./keyboard-operations";
 import { operations } from "./operations";
-import * as Path from "./path";
-import * as Source from "./source";
+import * as Path from "../core/path";
+import * as Source from "../core/source";
 
 export function Editor() {
   const [state, dispatch] = useReducer(editorReducer, emptyState);
@@ -20,7 +20,7 @@ export function Editor() {
   const viewTerm = makeViewTerm(state);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   return (
-    <div>
+    <div style={{ width: "100%", height: "100%", backgroundColor: colors.background, color: colors.white, whiteSpace: "pre" }}>
       <div>
         {Object.entries(state.source).map(([entry, { type }]) => {
           return (

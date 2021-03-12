@@ -1,7 +1,7 @@
 import { EditorState } from "./editor";
 import { EmulatedInputState } from "./emulated-input";
-import * as Source from "./source";
-import * as Path from "./path";
+import * as Source from "../core/source";
+import * as Path from "../core/path";
 
 type Operation = (state: EditorState) => EditorState;
 
