@@ -18,7 +18,7 @@ export function Editor() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
-  const viewTerm = makeViewTerm(state);
+  const viewTerm = makeViewTerm(state, dispatch);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   // const termUnderCursor = state.cursor.type === "entry" && Source.fluentScope(state.source).get(state.cursor.path).term;
   const preparedScope = prepareScope(state.source);
@@ -43,7 +43,7 @@ export function Editor() {
             !Source.isNullTerm(value) ||
             (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === "value");
           return (
-            <div key={entry} style={{ height: "1rem", lineHeight: "1rem" }}>
+            <div key={entry}>
               {entry}
               {type && showType && <> : {viewTerm(type, false, { entry, level: "type", relative: [] })}</>}
               {value && showValue && <> = {viewTerm(value, false, { entry, level: "value", relative: [] })}</>}
@@ -81,11 +81,14 @@ export type EditorState = {
   source: Source.Scope;
   cursor: { type: "top-empty"; input: EmulatedInputState } | { type: "entry"; path: Path.Absolute; cursor: number };
 };
-type EditorAction = { type: "keydown"; payload: KeyCombinationComponents };
+type EditorAction = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; path: Path.Absolute };
 
 const emptyState: EditorState = { source: {}, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } };
 
 function editorReducer(state: EditorState, action: EditorAction): EditorState {
+  if (action.type === "cursor") {
+    return { ...state, cursor: { type: "entry", path: action.path, cursor: 0 } };
+  }
   const operation = getOperationForKeyCombination(action.payload, state);
   if (operation) return operations[operation](state);
   if (state.cursor.type === "top-empty") {
@@ -121,11 +124,11 @@ function editorReducer(state: EditorState, action: EditorAction): EditorState {
   return state;
 }
 
-function makeViewTerm(state: EditorState) {
+function makeViewTerm(state: EditorState, dispatch: (action: EditorAction) => void) {
   function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
     const hasCursor = state.cursor.type === "entry" ? Path.fluent(path).isEqual(state.cursor.path) : false;
-    const borderBottom = hasCursor ? `2px solid ${colors.blue}` : "none";
-    const cursorHere = () => {};
+    const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
+    const cursorHere = () => dispatch({ type: "cursor", path });
     const childPath = (leaf: string) => Path.fluent(path).child(leaf).path;
     const parens = (symbol: string) =>
       showParens && (
@@ -141,7 +144,7 @@ function makeViewTerm(state: EditorState) {
     switch (term.type) {
       case "type": {
         return (
-          <span style={{ color: colors.purple, borderBottom }} onClick={cursorHere}>
+          <span style={{ color: colors.purple, backgroundColor }} onClick={cursorHere}>
             type<sub>{term.universe}</sub>
           </span>
         );
@@ -155,7 +158,7 @@ function makeViewTerm(state: EditorState) {
             onClick={cursorHere}
             style={{
               color: term.identifier === "" ? colors.gray : colors.white,
-              borderBottom,
+              backgroundColor,
             }}
           >
             {term.identifier || "_"}
@@ -164,7 +167,7 @@ function makeViewTerm(state: EditorState) {
       }
       case "application": {
         return (
-          <span style={{ borderBottom }}>
+          <span style={{ backgroundColor }}>
             {parens("(")}
             {viewTerm(term.left, term.left.type !== "application", childPath("left"))}
             {punctuation(" ")}
@@ -175,7 +178,7 @@ function makeViewTerm(state: EditorState) {
       }
       case "pi": {
         return (
-          <span style={{ borderBottom }}>
+          <span style={{ backgroundColor }}>
             {parens("(")}
             {term.head || hasCursor ? (
               <>
@@ -200,7 +203,7 @@ function makeViewTerm(state: EditorState) {
       }
       case "lambda": {
         return (
-          <span style={{ borderBottom }}>
+          <span style={{ backgroundColor }}>
             {parens("(")}
             {punctuation("(")}
             {hasCursor && state.cursor.type === "entry" ? (
