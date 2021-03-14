@@ -415,7 +415,7 @@ const suggestionChoose: Operation = (state) => {
         type: "reference",
         identifier: suggestion,
       }).scope,
-      cursor,
+      cursor: { type: "entry", path: cursor.path, cursor: suggestion.length },
     }),
     suggestionIndex: null,
   };

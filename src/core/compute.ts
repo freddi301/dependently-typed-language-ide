@@ -98,7 +98,7 @@ export function unprepareTerm(term: PreparedTerm): Source.Term {
   }
 }
 
-function isEqual(a: PreparedTerm, b: PreparedTerm): boolean {
+export function isEqual(a: PreparedTerm, b: PreparedTerm): boolean {
   switch (a.type) {
     case "free":
       return a.type === b.type && a.identifier === b.identifier;

@@ -5,7 +5,7 @@ import { getKeyCombinationComponentsFromEvent, ViewKeyCombination } from "./key-
 import { getPossibleKeyboardOperations } from "./keyboard-operations";
 import * as Path from "../core/path";
 import * as Source from "../core/source";
-import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
+import * as Compute from "../core/compute";
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
 import { getSuggestions } from "./suggestions";
@@ -22,12 +22,13 @@ export function EditorComponent() {
   }, []);
   const { source, cursor } = History.getCurrent(state.history);
   const viewTerm = makeViewTerm({ source, cursor }, dispatch);
-  const viewDerivedTerm = (term: PreparedTerm) => viewTerm(unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
+  const viewDerivedTerm = (term: Compute.PreparedTerm) =>
+    viewTerm(Compute.unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
-  const preparedScope = prepareScope(source);
+  const preparedScope = Compute.prepareScope(source);
   const termUnderCursor = cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
-  const type = tryIt(() => getType(termUnderCursor, preparedScope));
-  const value = tryIt(() => getValue(termUnderCursor, preparedScope));
+  const type = tryIt(() => Compute.getType(termUnderCursor, preparedScope));
+  const value = tryIt(() => Compute.getValue(termUnderCursor, preparedScope));
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   const suggestions = getSuggestions(state);
@@ -44,28 +45,46 @@ export function EditorComponent() {
         gridTemplateColumns: "1fr 1fr",
       }}
     >
-      <div style={{ gridColumn: 1, position: "relative", overflow: "scroll" }}>
-        <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch" }}>
+      <div style={{ gridColumn: 1, position: "relative", overflow: "overlay" }}>
+        <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch 0" }}>
           {Object.entries(source).map(([entry, { type, value }]) => {
+            const prepared = preparedScope[entry];
+            if (!prepared) throw new Error();
+            const annotatedType = Compute.getValue(prepared.type, preparedScope);
+            const derivedType = Compute.getType(prepared.value, preparedScope);
+            const hasError = !Compute.isEqual(annotatedType, derivedType) && !Source.isNullTerm(type) && !Source.isNullTerm(value);
             return (
-              <div key={entry}>
-                {entry}
-                {type && isShowable(entry, "type", type) && (
-                  <>
-                    <span style={{ color: colors.purple }}> : </span>
-                    {viewTerm(type, false, { entry, level: "type", relative: [] })}
-                  </>
+              <React.Fragment key={entry}>
+                <div style={{ padding: "0 1ch" }}>
+                  {entry}
+                  {type && isShowable(entry, "type", type) && (
+                    <>
+                      <span style={{ color: colors.purple }}> : </span>
+                      {viewTerm(type, false, { entry, level: "type", relative: [] })}
+                    </>
+                  )}
+                  {value && isShowable(entry, "value", value) && (
+                    <>
+                      <span style={{ color: colors.purple }}> = </span>
+                      {viewTerm(value, false, { entry, level: "value", relative: [] })}
+                    </>
+                  )}
+                </div>
+                {hasError && (
+                  <div style={{ backgroundColor: colors.backgroundDark, padding: "0 1ch" }}>
+                    <div style={{ color: colors.red }}>type error</div>
+                    <div>expected: {viewDerivedTerm(annotatedType)}</div>
+                    <div>detected: {viewDerivedTerm(derivedType)}</div>
+                  </div>
                 )}
-                {value && isShowable(entry, "value", value) && (
-                  <>
-                    <span style={{ color: colors.purple }}> = </span>
-                    {viewTerm(value, false, { entry, level: "value", relative: [] })}
-                  </>
-                )}
-              </div>
+              </React.Fragment>
             );
           })}
-          {cursor.type === "top-empty" && <EmulatedInput state={cursor.input} />}
+          {cursor.type === "top-empty" && (
+            <div style={{ paddingLeft: "1ch" }}>
+              <EmulatedInput state={cursor.input} />
+            </div>
+          )}
         </div>
       </div>
       <div style={{ gridColumn: 2 }}>
@@ -198,7 +217,7 @@ function tryIt<T>(f: () => T) {
 }
 
 function Infos({ infos }: { infos: Record<string, React.ReactNode> }) {
-  const [isOpenById, setIsOpenById] = useState<Record<string, boolean>>({});
+  const [isOpenById, setIsOpenById] = useState<Record<string, boolean>>(Object.fromEntries(Object.keys(infos).map((k) => [k, true])));
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
       {Object.entries(infos).map(([head, body]) => {
