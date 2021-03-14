@@ -1,12 +1,13 @@
-import { useLayoutEffect, useMemo, useReducer } from "react";
+import React, { useLayoutEffect, useReducer, useState } from "react";
 import { colors } from "../App";
-import { EmulatedInput, emulatedInputReducer, EmulatedInputState } from "./emulated-input";
-import { getKeyCombinationComponentsFromEvent, KeyCombinationComponents, ViewKeyCombination } from "./key-combinations";
-import { getOperationForKeyCombination, getPossibleKeyboardOperations } from "./keyboard-operations";
-import { operations } from "./operations";
+import { EmulatedInput } from "./emulated-input";
+import { getKeyCombinationComponentsFromEvent, ViewKeyCombination } from "./key-combinations";
+import { getPossibleKeyboardOperations } from "./keyboard-operations";
 import * as Path from "../core/path";
 import * as Source from "../core/source";
-import { getType, getValue, prepareScope, unprepareTerm } from "../core/compute";
+import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
+import { editorReducer, emptyState, EditorState, EditorAction } from "./editor-state";
+import { type } from "node:os";
 
 export function Editor() {
   const [state, dispatch] = useReducer(editorReducer, emptyState);
@@ -19,109 +20,68 @@ export function Editor() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
   const viewTerm = makeViewTerm(state, dispatch);
+  const viewDerivedTerm = (term: PreparedTerm) => viewTerm(unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
-  // const termUnderCursor = state.cursor.type === "entry" && Source.fluentScope(state.source).get(state.cursor.path).term;
   const preparedScope = prepareScope(state.source);
-  let value;
-  let type;
-  if (state.cursor.type === "top-empty") {
-    try {
-      value = getValue(preparedScope[state.cursor.input.text]?.value as any, preparedScope);
-    } catch (error) {}
-    try {
-      type = getType(preparedScope[state.cursor.input.text]?.value as any, preparedScope);
-    } catch (error) {}
-  }
+  const termUnderCursor = state.cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(state.cursor.path).term as any);
+  const type = tryIt(() => getType(termUnderCursor, preparedScope));
+  const value = tryIt(() => getValue(termUnderCursor, preparedScope));
+  const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
+    !Source.isNullTerm(term) || (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === level);
   return (
-    <div style={{ width: "100%", height: "100%", backgroundColor: colors.background, color: colors.white, whiteSpace: "pre" }}>
-      <div>
-        {Object.entries(state.source).map(([entry, { type, value }]) => {
-          const showType =
-            !Source.isNullTerm(type) ||
-            (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === "type");
-          const showValue =
-            !Source.isNullTerm(value) ||
-            (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === "value");
-          return (
-            <div key={entry}>
-              {entry}
-              {type && showType && <> : {viewTerm(type, false, { entry, level: "type", relative: [] })}</>}
-              {value && showValue && <> = {viewTerm(value, false, { entry, level: "value", relative: [] })}</>}
-            </div>
-          );
-        })}
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        boxSizing: "border-box",
+        backgroundColor: colors.background,
+        color: colors.white,
+        whiteSpace: "pre",
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+      }}
+    >
+      <div style={{ gridColumn: 1, position: "relative", overflow: "scroll" }}>
+        <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch" }}>
+          {Object.entries(state.source).map(([entry, { type, value }]) => {
+            return (
+              <div key={entry}>
+                {entry}
+                {type && isShowable(entry, "type", type) && (
+                  <>
+                    <span style={{ color: colors.purple }}> : </span>
+                    {viewTerm(type, false, { entry, level: "type", relative: [] })}
+                  </>
+                )}
+                {value && isShowable(entry, "value", value) && (
+                  <>
+                    <span style={{ color: colors.purple }}> = </span>
+                    {viewTerm(value, false, { entry, level: "value", relative: [] })}
+                  </>
+                )}
+              </div>
+            );
+          })}
+          {state.cursor.type === "top-empty" && <EmulatedInput state={state.cursor.input} />}
+        </div>
       </div>
-      {state.cursor.type === "top-empty" && <EmulatedInput state={state.cursor.input} />}
-      <div style={{ backgroundColor: colors.backgroundDark }}>
-        {possibleKeyboardOperations.map(({ keyCombination, operation }) => {
-          return (
-            <div key={keyCombination}>
-              <ViewKeyCombination keyCombination={keyCombination} />
-              {operation}
-            </div>
-          );
-        })}
+      <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
+        <InfoSection head="computed type" body={type && viewDerivedTerm(type)} />
+        <InfoSection head="computed value" body={value && viewDerivedTerm(value)} />
+        <InfoSection
+          head="keyboard shortcuts"
+          body={possibleKeyboardOperations.map(({ keyCombination, operation }) => {
+            return (
+              <div key={keyCombination}>
+                <ViewKeyCombination keyCombination={keyCombination} />
+                {operation}
+              </div>
+            );
+          })}
+        />
       </div>
-      {/* <pre>{JSON.stringify(termUnderCursor, null, 2)}</pre> */}
-      {value && (
-        <pre>
-          value {viewTerm(unprepareTerm(value), true, { entry: "*", level: "value", relative: [] })} {JSON.stringify(value, null, 2)}
-        </pre>
-      )}{" "}
-      {type && (
-        <pre>
-          type {viewTerm(unprepareTerm(type), true, { entry: "*", level: "type", relative: [] })} {JSON.stringify(type, null, 2)}
-        </pre>
-      )}
     </div>
   );
-}
-
-export type EditorState = {
-  source: Source.Scope;
-  cursor: { type: "top-empty"; input: EmulatedInputState } | { type: "entry"; path: Path.Absolute; cursor: number };
-};
-type EditorAction = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; path: Path.Absolute };
-
-const emptyState: EditorState = { source: {}, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } };
-
-function editorReducer(state: EditorState, action: EditorAction): EditorState {
-  if (action.type === "cursor") {
-    return { ...state, cursor: { type: "entry", path: action.path, cursor: 0 } };
-  }
-  const operation = getOperationForKeyCombination(action.payload, state);
-  if (operation) return operations[operation](state);
-  if (state.cursor.type === "top-empty") {
-    return {
-      source: state.source,
-      cursor: { type: "top-empty", input: emulatedInputReducer(state.cursor.input, action.payload) },
-    };
-  }
-  if (state.cursor.type === "entry") {
-    const term = Source.fluentScope(state.source).get(state.cursor.path).term;
-    if (term.type === "reference") {
-      const { text, cursor } = emulatedInputReducer({ text: term.identifier, cursor: state.cursor.cursor }, action.payload);
-      return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { type: "reference", identifier: text }).scope,
-        cursor: { ...state.cursor, cursor },
-      };
-    }
-    if (term.type === "pi") {
-      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
-      return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
-        cursor: { ...state.cursor, cursor },
-      };
-    }
-    if (term.type === "lambda") {
-      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
-      return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
-        cursor: { ...state.cursor, cursor },
-      };
-    }
-  }
-  return state;
 }
 
 function makeViewTerm(state: EditorState, dispatch: (action: EditorAction) => void) {
@@ -145,7 +105,7 @@ function makeViewTerm(state: EditorState, dispatch: (action: EditorAction) => vo
       case "type": {
         return (
           <span style={{ color: colors.purple, backgroundColor }} onClick={cursorHere}>
-            type<sub>{term.universe}</sub>
+            type{term.universe !== 1 && <> {term.universe}</>}
           </span>
         );
       }
@@ -223,4 +183,31 @@ function makeViewTerm(state: EditorState, dispatch: (action: EditorAction) => vo
     }
   }
   return viewTerm;
+}
+
+function tryIt<T>(f: () => T) {
+  try {
+    return f();
+  } catch (error) {
+    return;
+  }
+}
+
+function InfoSection({ head, body }: { head: string; body: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(true);
+  return (
+    <div style={{ flexGrow: isOpen ? 1 : 0, display: "flex", flexDirection: "column" }}>
+      <div
+        style={{
+          backgroundColor: colors.background,
+          cursor: "pointer",
+          padding: "0 2ch",
+        }}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        {head}
+      </div>
+      {isOpen && <div style={{ flexGrow: 1, backgroundColor: colors.backgroundDark, padding: "0 2ch" }}>{body}</div>}
+    </div>
+  );
 }

@@ -1,4 +1,4 @@
-import { EditorState } from "./editor";
+import { EditorState } from "./editor-state";
 import { EmulatedInputState } from "./emulated-input";
 import * as Source from "../core/source";
 import * as Path from "../core/path";

@@ -1,4 +1,4 @@
-import { EditorState } from "./editor";
+import { EditorState } from "./editor-state";
 import {
   KeyCombination,
   getKeyCombinationFromKeyCombinationComponents,
