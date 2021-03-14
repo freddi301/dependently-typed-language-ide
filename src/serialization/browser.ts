@@ -20,7 +20,7 @@ export function download(data: string, type: "application/json") {
   }
 }
 
-export function load(onLoad: (text: string) => void) {
+export function upload(onLoad: (text: string) => void) {
   const input = document.createElement("input");
   document.body.appendChild(input);
   input.type = "file";

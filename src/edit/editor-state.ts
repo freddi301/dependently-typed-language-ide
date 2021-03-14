@@ -11,7 +11,10 @@ export type State = {
   suggestionIndex: number | null;
 };
 
-export type Action = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; payload: Path.Absolute };
+export type Action =
+  | { type: "keydown"; payload: KeyCombinationComponents }
+  | { type: "cursor"; payload: Path.Absolute }
+  | { type: "load"; payload: Source.Scope };
 
 export type SourceState = {
   source: Source.Scope;
@@ -34,6 +37,12 @@ export const emptyState: State = {
 export function reducer(state: State, action: Action): State {
   const { source, cursor } = History.getCurrent(state.history);
   const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
+  if (action.type === "load") {
+    return {
+      history: do_({ source: action.payload, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } }),
+      suggestionIndex: null,
+    };
+  }
   if (action.type === "cursor") {
     return {
       history: do_({ source, cursor: { type: "entry", path: action.payload, cursor: 0 } }),

@@ -9,6 +9,7 @@ import * as Compute from "../core/compute";
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
 import { getSuggestions } from "./suggestions";
+import { copyToClipboard, download, upload } from "../serialization/browser";
 
 export function EditorComponent() {
   const [state, dispatch] = useReducer(Editor.reducer, Editor.emptyState);
@@ -108,6 +109,31 @@ export function EditorComponent() {
                 </div>
               );
             }),
+            extra: (
+              <div>
+                <button
+                  onClick={() => {
+                    download(JSON.stringify(source), "application/json");
+                  }}
+                >
+                  download
+                </button>
+                <button
+                  onClick={() => {
+                    upload((text) => JSON.parse(text));
+                  }}
+                >
+                  updload
+                </button>
+                <button
+                  onClick={() => {
+                    copyToClipboard(JSON.stringify(source));
+                  }}
+                >
+                  clipboard
+                </button>
+              </div>
+            ),
           }}
         />
       </div>
