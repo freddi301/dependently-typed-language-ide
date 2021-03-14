@@ -31,6 +31,7 @@ export function EditorComponent() {
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   const allIdentifiers = Query.allIdentifiers(source);
+  const allIdentifiersInScope = cursor.type === "entry" && Query.allIdentifiersInScope(source, cursor.path);
   return (
     <div
       style={{
@@ -71,6 +72,15 @@ export function EditorComponent() {
       <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
         <InfoSection head="computed type" body={type && viewDerivedTerm(type)} />
         <InfoSection head="computed value" body={value && viewDerivedTerm(value)} />
+        <InfoSection
+          head="all identifiers in scope"
+          body={
+            allIdentifiersInScope &&
+            Array.from(allIdentifiersInScope, (identifier) => {
+              return <div key={identifier}>{identifier}</div>;
+            })
+          }
+        />
         <InfoSection
           head="all identifiers"
           body={Array.from(allIdentifiers, (identifier) => {
