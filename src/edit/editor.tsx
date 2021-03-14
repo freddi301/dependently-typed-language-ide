@@ -8,6 +8,7 @@ import * as Source from "../core/source";
 import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
+import * as Query from "../core/query";
 
 export function EditorComponent() {
   const [state, dispatch] = useReducer(Editor.reducer, Editor.emptyState);
@@ -29,6 +30,7 @@ export function EditorComponent() {
   const value = tryIt(() => getValue(termUnderCursor, preparedScope));
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
+  const allIdentifiers = Query.allIdentifiers(source);
   return (
     <div
       style={{
@@ -69,6 +71,12 @@ export function EditorComponent() {
       <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
         <InfoSection head="computed type" body={type && viewDerivedTerm(type)} />
         <InfoSection head="computed value" body={value && viewDerivedTerm(value)} />
+        <InfoSection
+          head="all identifiers"
+          body={Array.from(allIdentifiers, (identifier) => {
+            return <div key={identifier}>{identifier}</div>;
+          })}
+        />
         <InfoSection
           head="keyboard shortcuts"
           body={possibleKeyboardOperations.map(({ keyCombination, operation }) => {
