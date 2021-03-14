@@ -9,6 +9,7 @@ import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "..
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
 import * as Query from "../core/query";
+import { getSuggestions } from "./suggestions";
 
 export function EditorComponent() {
   const [state, dispatch] = useReducer(Editor.reducer, Editor.emptyState);
@@ -32,6 +33,7 @@ export function EditorComponent() {
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   const allIdentifiers = Query.allIdentifiers(source);
   const allIdentifiersInScope = cursor.type === "entry" && Query.allIdentifiersInScope(source, cursor.path);
+  const suggestions = getSuggestions(state);
   return (
     <div
       style={{
@@ -72,6 +74,17 @@ export function EditorComponent() {
       <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
         <InfoSection head="computed type" body={type && viewDerivedTerm(type)} />
         <InfoSection head="computed value" body={value && viewDerivedTerm(value)} />
+        <InfoSection
+          head="intellisense"
+          body={suggestions.map((suggestion, index) => {
+            const isSelected = index === state.suggestionIndex;
+            return (
+              <div key={suggestion} style={{ backgroundColor: isSelected ? colors.background : colors.backgroundDark }}>
+                {suggestion}
+              </div>
+            );
+          })}
+        />
         <InfoSection
           head="all identifiers in scope"
           body={

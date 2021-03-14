@@ -8,6 +8,7 @@ import * as History from "./history-state";
 
 export type State = {
   history: History.State<SourceState>;
+  suggestionIndex: number | null;
 };
 
 export type Action = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; payload: Path.Absolute };
@@ -27,6 +28,7 @@ export const emptyState: State = {
       },
     ],
   },
+  suggestionIndex: null,
 };
 
 export function reducer(state: State, action: Action): State {
@@ -35,6 +37,7 @@ export function reducer(state: State, action: Action): State {
   if (action.type === "cursor") {
     return {
       history: do_({ source, cursor: { type: "entry", path: action.payload, cursor: 0 } }),
+      suggestionIndex: null,
     };
   }
   if (action.type === "keydown") {
@@ -51,11 +54,12 @@ export function reducer(state: State, action: Action): State {
         source,
         cursor: { type: "top-empty", input },
       }),
+      suggestionIndex: null,
     };
   }
   if (action.type === "keydown" && cursor.type === "entry") {
     const term = Source.fluentScope(source).get(cursor.path).term;
-    const traceInput = <A extends string, T extends Source.Term & { [K in A]: string }>(term: T, attribute: A) => {
+    const traceInput = <A extends string, T extends Source.Term & { [K in A]: string }>(term: T, attribute: A): State => {
       const input = emulatedInputReducer({ text: term[attribute], cursor: cursor.cursor }, action.payload);
       if (!input) return state;
       return {
@@ -63,6 +67,7 @@ export function reducer(state: State, action: Action): State {
           source: Source.fluentScope(source).set(cursor.path, { ...term, [attribute]: input.text }).scope,
           cursor: { ...cursor, cursor: input.cursor },
         }),
+        suggestionIndex: null,
       };
     };
     switch (term.type) {

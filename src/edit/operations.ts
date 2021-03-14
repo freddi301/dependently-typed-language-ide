@@ -3,6 +3,7 @@ import { EmulatedInputState } from "./emulated-input";
 import * as Source from "../core/source";
 import * as Path from "../core/path";
 import * as History from "./history-state";
+import { getSuggestions } from "./suggestions";
 
 // TODO should not use throw
 type Operation = (state: State) => State;
@@ -29,6 +30,7 @@ const addEntry: Operation = (state) => {
   if (!isCursorAtEnd(cursor.input)) throw new Error();
   return {
     history: do_({ source: Source.fluentScope(source).add(entry).scope, cursor: { type: "top-empty", input: emptyInput } }),
+    suggestionIndex: null,
   };
 };
 
@@ -50,6 +52,7 @@ const turnIntoType: Operation = (state) => {
       }).scope,
       cursor,
     }),
+    suggestionIndex: null,
   };
 };
 
@@ -59,6 +62,7 @@ const resetCursor: Operation = (state) => {
   if (cursor.type === "top-empty") throw new Error();
   return {
     history: do_({ source, cursor: { type: "top-empty", input: emptyInput } }),
+    suggestionIndex: null,
   };
 };
 
@@ -76,6 +80,7 @@ function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
         source: Source.fluentScope(source).add(entry).scope,
         cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
       }),
+      suggestionIndex: null,
     };
   };
 }
@@ -94,6 +99,7 @@ function makeMoveCursorTo(level: "type" | "value"): Operation {
     if (!isCursorAtEnd(cursor.input)) throw new Error();
     return {
       history: do_({ source, cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 } }),
+      suggestionIndex: null,
     };
   };
 }
@@ -115,6 +121,7 @@ const turnIntoPiFromThenCursorToTo: Operation = (state) => {
       }).scope,
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("to").path },
     }),
+    suggestionIndex: null,
   };
 };
 
@@ -134,6 +141,7 @@ const turnIntoPiHeadThenCursorToFrom: Operation = (state) => {
       }).scope,
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
     }),
+    suggestionIndex: null,
   };
 };
 
@@ -153,6 +161,7 @@ const turnIntoLambdaHeadThenCursorToFrom: Operation = (state) => {
       }).scope,
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
     }),
+    suggestionIndex: null,
   };
 };
 
@@ -173,6 +182,7 @@ const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
         }).scope,
         cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
       }),
+      suggestionIndex: null,
     };
   }
   return {
@@ -184,6 +194,7 @@ const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
       }).scope,
       cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
     }),
+    suggestionIndex: null,
   };
 };
 
@@ -194,7 +205,7 @@ const navigateUp: Operation = (state) => {
   const currentPathFluent = Path.fluent(cursor.path);
   const parentPathFluent = currentPathFluent.parent();
   if (parentPathFluent) {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.path } }) };
+    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.path } }), suggestionIndex: null };
   }
   throw new Error();
 };
@@ -207,13 +218,22 @@ const navigateDown: Operation = (state) => {
   const currentPathFluent = Path.fluent(cursor.path);
   const currentFluent = sourceFluent.get(currentPathFluent.path);
   if (currentFluent.term.type === "application") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("left").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("left").path } }),
+      suggestionIndex: null,
+    };
   }
   if (currentFluent.term.type === "pi") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
+      suggestionIndex: null,
+    };
   }
   if (currentFluent.term.type === "lambda") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
+      suggestionIndex: null,
+    };
   }
   throw new Error();
 };
@@ -232,10 +252,16 @@ const navigateLeft: Operation = (state) => {
     throw new Error();
   if (currentFluent.term.type === "pi" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
   if (parentFluent.term.type === "application" && currentPathFluent.last() === "right") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("left").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("left").path } }),
+      suggestionIndex: null,
+    };
   }
   if (parentFluent.term.type === "pi" && currentPathFluent.last() === "to") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("from").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("from").path } }),
+      suggestionIndex: null,
+    };
   }
   throw new Error();
 };
@@ -253,13 +279,22 @@ const navigateRight: Operation = (state) => {
   if (currentFluent.term.type === "reference" && !isCursorAtEnd({ text: currentFluent.term.identifier, cursor: cursor.cursor }))
     throw new Error();
   if (parentFluent.term.type === "application" && currentPathFluent.last() === "left") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("right").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("right").path } }),
+      suggestionIndex: null,
+    };
   }
   if (parentFluent.term.type === "pi" && currentPathFluent.last() === "from") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
+      suggestionIndex: null,
+    };
   }
   if (parentFluent.term.type === "lambda" && currentPathFluent.last() === "from") {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("body").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("body").path } }),
+      suggestionIndex: null,
+    };
   }
   throw new Error();
 };
@@ -275,6 +310,7 @@ const replaceWithEmptyReference: Operation = (state) => {
   if (currentFluent.term.type === "pi" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
   return {
     history: do_({ source: Source.fluentScope(source).set(cursor.path, emptyReference).scope, cursor: { ...cursor, cursor: 0 } }),
+    suggestionIndex: null,
   };
 };
 
@@ -294,7 +330,10 @@ const navigateIntoRight: Operation = (state) => {
     parentFluent?.term.type === "pi" &&
     currentPathFluent.last() === "from"
   ) {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }) };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
+      suggestionIndex: null,
+    };
   }
   throw new Error();
 };
@@ -303,6 +342,7 @@ const undo: Operation = (state) => {
   if (!History.canUndo(state.history)) return state;
   return {
     history: History.reducer(state.history, { type: "undo" }),
+    suggestionIndex: null,
   };
 };
 
@@ -310,6 +350,74 @@ const redo: Operation = (state) => {
   if (!History.canRedo(state.history)) return state;
   return {
     history: History.reducer(state.history, { type: "redo" }),
+    suggestionIndex: null,
+  };
+};
+
+const suggestionStart: Operation = (state) => {
+  const { cursor } = History.getCurrent(state.history);
+  if (cursor.type !== "entry") throw new Error();
+  if (state.suggestionIndex !== null) return state;
+  return {
+    history: state.history,
+    suggestionIndex: 0,
+  };
+};
+
+const suggestionStop: Operation = (state) => {
+  if (state.suggestionIndex === null) throw new Error();
+  return {
+    history: state.history,
+    suggestionIndex: null,
+  };
+};
+
+const suggestionUp: Operation = (state) => {
+  if (state.suggestionIndex === null) throw new Error();
+  if (state.suggestionIndex > 0) {
+    return {
+      history: state.history,
+      suggestionIndex: state.suggestionIndex - 1,
+    };
+  }
+  const suggestions = getSuggestions(state);
+  return {
+    history: state.history,
+    suggestionIndex: suggestions.length - 1,
+  };
+};
+
+const suggestionDown: Operation = (state) => {
+  if (state.suggestionIndex === null) throw new Error();
+  const suggestions = getSuggestions(state);
+  if (state.suggestionIndex > suggestions.length - 2)
+    return {
+      history: state.history,
+      suggestionIndex: 0,
+    };
+  return {
+    history: state.history,
+    suggestionIndex: state.suggestionIndex + 1,
+  };
+};
+
+const suggestionChoose: Operation = (state) => {
+  if (state.suggestionIndex === null) throw new Error();
+  const suggestions = getSuggestions(state);
+  const suggestion = suggestions[state.suggestionIndex];
+  if (!suggestion) throw new Error();
+  const { source, cursor } = History.getCurrent(state.history);
+  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
+  if (cursor.type !== "entry") throw new Error();
+  return {
+    history: do_({
+      source: Source.fluentScope(source).set(cursor.path, {
+        type: "reference",
+        identifier: suggestion,
+      }).scope,
+      cursor,
+    }),
+    suggestionIndex: null,
   };
 };
 
@@ -333,4 +441,9 @@ export const operations = {
   turnIntoType,
   undo,
   redo,
+  suggestionStart,
+  suggestionStop,
+  suggestionUp,
+  suggestionDown,
+  suggestionChoose,
 };

@@ -127,4 +127,5 @@ const keyLabelMap: Record<string, string> = {
   ArrowDown: "↓",
   Backspace: "⌫",
   Delete: "⌦",
+  " ": "__",
 };
