@@ -6,12 +6,9 @@ body {
   font-family: "JetBrains Mono";
   src: url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/webfonts/JetBrainsMono-Regular.eot")
       format("embedded-opentype"),
-    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/webfonts/JetBrainsMono-Regular.woff2")
-      format("woff2"),
-    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/webfonts/JetBrainsMono-Regular.woff")
-      format("woff"),
-    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf/JetBrainsMono-Regular.ttf")
-      format("truetype");
+    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/webfonts/JetBrainsMono-Regular.woff2") format("woff2"),
+    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/webfonts/JetBrainsMono-Regular.woff") format("woff"),
+    url("https://raw.githubusercontent.com/JetBrains/JetBrainsMono/master/fonts/ttf/JetBrainsMono-Regular.ttf") format("truetype");
   font-weight: normal;
   font-style: normal;
 }
@@ -21,4 +18,19 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-family: "JetBrains Mono";
+}
+
+* {
+  scrollbar-color: #61afef transparent;
+  scrollbar-width: 1ch;
+}
+*::-webkit-scrollbar {
+  width: 1ch;
+  height: 1ch;
+}
+*:hover::-webkit-scrollbar-thumb {
+  background-color: #61afef;
+}
+*::-webkit-scrollbar-corner {
+  color: transparent;
 }

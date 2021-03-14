@@ -8,7 +8,6 @@ import * as Source from "../core/source";
 import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
-import * as Query from "../core/query";
 import { getSuggestions } from "./suggestions";
 
 export function EditorComponent() {
@@ -31,8 +30,6 @@ export function EditorComponent() {
   const value = tryIt(() => getValue(termUnderCursor, preparedScope));
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
-  const allIdentifiers = Query.allIdentifiers(source);
-  const allIdentifiersInScope = cursor.type === "entry" && Query.allIdentifiersInScope(source, cursor.path);
   const suggestions = getSuggestions(state);
   return (
     <div
@@ -71,45 +68,28 @@ export function EditorComponent() {
           {cursor.type === "top-empty" && <EmulatedInput state={cursor.input} />}
         </div>
       </div>
-      <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
-        <InfoSection head="computed type" body={type && viewDerivedTerm(type)} />
-        <InfoSection head="computed value" body={value && viewDerivedTerm(value)} />
-        <InfoSection
-          head="intellisense"
-          body={suggestions.map((suggestion, index) => {
-            const isSelected = index === state.suggestionIndex;
-            return (
-              <div key={suggestion} style={{ backgroundColor: isSelected ? colors.background : colors.backgroundDark }}>
-                {suggestion}
-              </div>
-            );
-          })}
-        />
-        <InfoSection
-          head="all identifiers in scope"
-          body={
-            allIdentifiersInScope &&
-            Array.from(allIdentifiersInScope, (identifier) => {
-              return <div key={identifier}>{identifier}</div>;
-            })
-          }
-        />
-        <InfoSection
-          head="all identifiers"
-          body={Array.from(allIdentifiers, (identifier) => {
-            return <div key={identifier}>{identifier}</div>;
-          })}
-        />
-        <InfoSection
-          head="keyboard shortcuts"
-          body={possibleKeyboardOperations.map(({ keyCombination, operation }) => {
-            return (
-              <div key={keyCombination} style={{ display: "flex", alignItems: "center" }}>
-                <ViewKeyCombination keyCombination={keyCombination} />
-                <div>{operation}</div>
-              </div>
-            );
-          })}
+      <div style={{ gridColumn: 2 }}>
+        <Infos
+          infos={{
+            "computed type": type && viewDerivedTerm(type),
+            "computed value": value && viewDerivedTerm(value),
+            intellisense: suggestions.map((suggestion, index) => {
+              const isSelected = index === state.suggestionIndex;
+              return (
+                <div key={suggestion} style={{ backgroundColor: isSelected ? colors.background : colors.backgroundDark }}>
+                  {suggestion}
+                </div>
+              );
+            }),
+            "keyboard shortcuts": possibleKeyboardOperations.map(({ keyCombination, operation }) => {
+              return (
+                <div key={keyCombination} style={{ display: "flex", alignItems: "center" }}>
+                  <ViewKeyCombination keyCombination={keyCombination} />
+                  <div>{operation}</div>
+                </div>
+              );
+            }),
+          }}
         />
       </div>
     </div>
@@ -217,21 +197,35 @@ function tryIt<T>(f: () => T) {
   }
 }
 
-function InfoSection({ head, body }: { head: string; body: React.ReactNode }) {
-  const [isOpen, setIsOpen] = useState(true);
+function Infos({ infos }: { infos: Record<string, React.ReactNode> }) {
+  const [isOpenById, setIsOpenById] = useState<Record<string, boolean>>({});
   return (
-    <div style={{ flexGrow: isOpen ? 1 : 0, display: "flex", flexDirection: "column" }}>
-      <div
-        style={{
-          backgroundColor: colors.background,
-          cursor: "pointer",
-          padding: "0 2ch",
-        }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {head}
-      </div>
-      {isOpen && <div style={{ flexGrow: 1, backgroundColor: colors.backgroundDark, padding: "0 2ch" }}>{body}</div>}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {Object.entries(infos).map(([head, body]) => {
+        const isOpen = isOpenById[head];
+        return (
+          <div key={head} style={{ flexGrow: isOpen ? 1 : 0, display: "flex", flexDirection: "column" }}>
+            <div
+              onClick={() => {
+                setIsOpenById({ ...isOpenById, [head]: !isOpen });
+              }}
+              style={{
+                backgroundColor: colors.background,
+                cursor: "pointer",
+                padding: "0 2ch",
+                userSelect: "none",
+              }}
+            >
+              {head}
+            </div>
+            {isOpen && (
+              <div style={{ flexGrow: 1, backgroundColor: colors.backgroundDark, position: "relative", overflow: "auto" }}>
+                <div style={{ position: "absolute", width: "100%", padding: "0 2ch", boxSizing: "border-box" }}>{body}</div>
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
