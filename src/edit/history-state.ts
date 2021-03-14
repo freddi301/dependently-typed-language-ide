@@ -1,5 +1,5 @@
 export type State<Value> = {
-  history: Array<Value>;
+  stack: Array<Value>;
   index: number;
 };
 export type Action<Value> = { type: "do"; payload: Value } | { type: "undo" } | { type: "redo" };
@@ -8,17 +8,19 @@ export function reducer<Value>(state: State<Value>, action: Action<Value>): Stat
   switch (action.type) {
     case "do":
       return {
-        history: state.history.slice(0, state.index),
+        stack: [...state.stack.slice(0, state.index + 1), action.payload],
         index: state.index + 1,
       };
     case "undo":
+      if (!canUndo(state)) throw new Error();
       return {
-        history: state.history,
+        stack: state.stack,
         index: state.index - 1,
       };
     case "redo":
+      if (!canRedo(state)) throw new Error();
       return {
-        history: state.history,
+        stack: state.stack,
         index: state.index + 1,
       };
   }
@@ -29,11 +31,11 @@ export function canUndo<Value>(state: State<Value>): boolean {
 }
 
 export function canRedo<Value>(state: State<Value>): boolean {
-  return state.index < state.history.length - 2;
+  return state.index < state.stack.length - 1;
 }
 
-export function getValue<Value>(state: State<Value>): Value {
-  const value = state.history[state.index];
+export function getCurrent<Value>(state: State<Value>): Value {
+  const value = state.stack[state.index];
   if (!value) throw new Error();
   return value;
 }

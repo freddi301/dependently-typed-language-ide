@@ -7,6 +7,7 @@ import * as Path from "../core/path";
 import * as Source from "../core/source";
 import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
 import * as Editor from "./editor-state";
+import * as History from "./history-state";
 
 export function EditorComponent() {
   const [state, dispatch] = useReducer(Editor.reducer, Editor.emptyState);
@@ -18,15 +19,16 @@ export function EditorComponent() {
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
-  const viewTerm = makeViewTerm(state, dispatch);
+  const { source, cursor } = History.getCurrent(state.history);
+  const viewTerm = makeViewTerm({ source, cursor }, dispatch);
   const viewDerivedTerm = (term: PreparedTerm) => viewTerm(unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
-  const preparedScope = prepareScope(state.source);
-  const termUnderCursor = state.cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(state.cursor.path).term as any);
+  const preparedScope = prepareScope(source);
+  const termUnderCursor = cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
   const type = tryIt(() => getType(termUnderCursor, preparedScope));
   const value = tryIt(() => getValue(termUnderCursor, preparedScope));
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
-    !Source.isNullTerm(term) || (state.cursor.type === "entry" && state.cursor.path.entry === entry && state.cursor.path.level === level);
+    !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   return (
     <div
       style={{
@@ -42,7 +44,7 @@ export function EditorComponent() {
     >
       <div style={{ gridColumn: 1, position: "relative", overflow: "scroll" }}>
         <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch" }}>
-          {Object.entries(state.source).map(([entry, { type, value }]) => {
+          {Object.entries(source).map(([entry, { type, value }]) => {
             return (
               <div key={entry}>
                 {entry}
@@ -61,7 +63,7 @@ export function EditorComponent() {
               </div>
             );
           })}
-          {state.cursor.type === "top-empty" && <EmulatedInput state={state.cursor.input} />}
+          {cursor.type === "top-empty" && <EmulatedInput state={cursor.input} />}
         </div>
       </div>
       <div style={{ gridColumn: 2, display: "flex", flexDirection: "column" }}>
@@ -71,9 +73,9 @@ export function EditorComponent() {
           head="keyboard shortcuts"
           body={possibleKeyboardOperations.map(({ keyCombination, operation }) => {
             return (
-              <div key={keyCombination}>
+              <div key={keyCombination} style={{ display: "flex", alignItems: "center" }}>
                 <ViewKeyCombination keyCombination={keyCombination} />
-                {operation}
+                <div>{operation}</div>
               </div>
             );
           })}
@@ -83,9 +85,9 @@ export function EditorComponent() {
   );
 }
 
-function makeViewTerm(state: Editor.State, dispatch: (action: Editor.Action) => void) {
+function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action: Editor.Action) => void) {
   function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
-    const hasCursor = state.cursor.type === "entry" ? Path.fluent(path).isEqual(state.cursor.path) : false;
+    const hasCursor = cursor.type === "entry" ? Path.fluent(path).isEqual(cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
     const cursorHere = () => dispatch({ type: "cursor", payload: path });
     const childPath = (leaf: string) => Path.fluent(path).child(leaf).path;
@@ -109,8 +111,8 @@ function makeViewTerm(state: Editor.State, dispatch: (action: Editor.Action) => 
         );
       }
       case "reference": {
-        if (hasCursor && state.cursor.type === "entry") {
-          return <EmulatedInput state={{ text: term.identifier, cursor: state.cursor.cursor }} />;
+        if (hasCursor && cursor.type === "entry") {
+          return <EmulatedInput state={{ text: term.identifier, cursor: cursor.cursor }} />;
         }
         return (
           <span
@@ -142,11 +144,7 @@ function makeViewTerm(state: Editor.State, dispatch: (action: Editor.Action) => 
             {term.head || hasCursor ? (
               <>
                 {punctuation("(")}
-                {hasCursor && state.cursor.type === "entry" ? (
-                  <EmulatedInput state={{ text: term.head, cursor: state.cursor.cursor }} />
-                ) : (
-                  term.head
-                )}
+                {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
                 {punctuation(" : ")}
                 {viewTerm(term.from, false, childPath("from"))}
                 {punctuation(")")}
@@ -165,11 +163,7 @@ function makeViewTerm(state: Editor.State, dispatch: (action: Editor.Action) => 
           <span style={{ backgroundColor }}>
             {parens("(")}
             {punctuation("(")}
-            {hasCursor && state.cursor.type === "entry" ? (
-              <EmulatedInput state={{ text: term.head, cursor: state.cursor.cursor }} />
-            ) : (
-              term.head
-            )}
+            {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
             {punctuation(" : ")}
             {viewTerm(term.from, false, childPath("from"))}
             {punctuation(")")}

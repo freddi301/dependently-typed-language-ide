@@ -23,6 +23,8 @@ export const keyboardOperations: {
   ArrowRight: { navigateRight: null },
   Tab: { navigateIntoRight: null },
   Backspace: { replaceWithEmptyReference: null },
+  "ctrl-z": { undo: null },
+  "ctrl-shift-z": { redo: null },
 };
 
 export function getOperationForKeyCombination(
@@ -31,7 +33,11 @@ export function getOperationForKeyCombination(
 ): keyof typeof operations | undefined {
   const { key } = keyCombinationComponents;
   const keyCombination = getKeyCombinationFromKeyCombinationComponents(keyCombinationComponents);
-  const list = keyboardOperations[keyCombination] ?? keyboardOperations[key];
+  const lowerCaseKeyCombination = getKeyCombinationFromKeyCombinationComponents({
+    ...keyCombinationComponents,
+    key: key.toLocaleLowerCase() as any,
+  });
+  const list = keyboardOperations[keyCombination] ?? keyboardOperations[lowerCaseKeyCombination] ?? keyboardOperations[key];
   if (!list) return;
   for (const description in list) {
     try {

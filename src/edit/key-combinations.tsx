@@ -102,18 +102,19 @@ export function ViewKeyCombination(props: { keyCombination: KeyCombination } | {
       : getKeyCombinationComponentsFromKeyCombination(props.keyCombination);
   const style: React.CSSProperties = {
     border: `1px solid ${colors.white}`,
+    boxSizing: "border-box",
     borderRadius: "4px",
-    backgroundColor: colors.backgroundDark,
-    margin: "-1px 2px",
+    margin: "1px 2px 0 1px",
     padding: "0 0.5ch",
+    fontSize: "0.8rem",
   };
   return (
-    <span style={{ display: "inline-block", transform: "scale(0.8)" }}>
-      {ctrl && <span style={style}>ctrl</span>}
-      {shift && <span style={style}>shift</span>}
-      {alt && <span style={style}>alt</span>}
-      <span style={style}>{keyLabelMap[key] ?? key}</span>
-    </span>
+    <>
+      {ctrl && <div style={style}>ctrl</div>}
+      {shift && <div style={style}>shift</div>}
+      {alt && <div style={style}>alt</div>}
+      <div style={style}>{keyLabelMap[key] ?? key}</div>
+    </>
   );
 }
 

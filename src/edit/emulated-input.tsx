@@ -21,7 +21,7 @@ export function EmulatedInput({ state: { text, cursor } }: { state: EmulatedInpu
 
 export type EmulatedInputState = { text: string; cursor: number };
 
-export function emulatedInputReducer({ text, cursor }: EmulatedInputState, { key }: KeyCombinationComponents): EmulatedInputState {
+export function emulatedInputReducer({ text, cursor }: EmulatedInputState, { key }: KeyCombinationComponents): EmulatedInputState | null {
   if (key.length === 1) {
     return {
       cursor: cursor + 1,
@@ -41,5 +41,5 @@ export function emulatedInputReducer({ text, cursor }: EmulatedInputState, { key
       text: text.slice(0, cursor) + text.slice(cursor + 1),
       cursor,
     };
-  } else return { text, cursor };
+  } else return null;
 }
