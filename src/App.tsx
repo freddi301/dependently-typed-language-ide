@@ -1,5 +1,5 @@
 import React from "react";
-import { Editor } from "./edit/editor";
+import { EditorComponent } from "./edit/editor";
 
 export default function App() {
   return (
@@ -9,7 +9,7 @@ export default function App() {
         height: "100vh",
       }}
     >
-      <Editor />
+      <EditorComponent />
     </div>
   );
 }

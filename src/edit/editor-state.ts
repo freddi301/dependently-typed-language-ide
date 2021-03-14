@@ -4,47 +4,53 @@ import { getOperationForKeyCombination } from "./keyboard-operations";
 import { operations } from "./operations";
 import * as Path from "../core/path";
 import * as Source from "../core/source";
+import * as History from "./history-state";
 
-export type EditorState = {
+export type State = {
   source: Source.Scope;
   cursor: { type: "top-empty"; input: EmulatedInputState } | { type: "entry"; path: Path.Absolute; cursor: number };
+  // history: History.State<Source.Scope>;
 };
-export type EditorAction = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; path: Path.Absolute };
-export const emptyState: EditorState = { source: {}, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } };
-export function editorReducer(state: EditorState, action: EditorAction): EditorState {
+
+export type Action = { type: "keydown"; payload: KeyCombinationComponents } | { type: "cursor"; payload: Path.Absolute };
+
+export const emptyState: State = {
+  source: {},
+  cursor: { type: "top-empty", input: { text: "", cursor: 0 } },
+  // history: { history: [{}], index: 0 },
+};
+
+export function reducer(state: State, action: Action): State {
+  const { source, cursor } = state;
   if (action.type === "cursor") {
-    return { ...state, cursor: { type: "entry", path: action.path, cursor: 0 } };
+    return { ...state, cursor: { type: "entry", path: action.payload, cursor: 0 } };
   }
   const operation = getOperationForKeyCombination(action.payload, state);
-  if (operation) return operations[operation](state);
-  if (state.cursor.type === "top-empty") {
+  if (operation) {
+    return operations[operation](state);
+  }
+  if (cursor.type === "top-empty") {
     return {
-      source: state.source,
-      cursor: { type: "top-empty", input: emulatedInputReducer(state.cursor.input, action.payload) },
+      source: source,
+      cursor: { type: "top-empty", input: emulatedInputReducer(cursor.input, action.payload) },
     };
   }
-  if (state.cursor.type === "entry") {
-    const term = Source.fluentScope(state.source).get(state.cursor.path).term;
-    if (term.type === "reference") {
-      const { text, cursor } = emulatedInputReducer({ text: term.identifier, cursor: state.cursor.cursor }, action.payload);
+  if (cursor.type === "entry") {
+    const term = Source.fluentScope(source).get(cursor.path).term;
+    const traceInput = <A extends string, T extends Source.Term & { [K in A]: string }>(term: T, attribute: A) => {
+      const input = emulatedInputReducer({ text: term[attribute], cursor: cursor.cursor }, action.payload);
       return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { type: "reference", identifier: text }).scope,
-        cursor: { ...state.cursor, cursor },
+        source: Source.fluentScope(source).set(cursor.path, { ...term, [attribute]: input.text }).scope,
+        cursor: { ...cursor, cursor: input.cursor },
       };
-    }
-    if (term.type === "pi") {
-      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
-      return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
-        cursor: { ...state.cursor, cursor },
-      };
-    }
-    if (term.type === "lambda") {
-      const { text, cursor } = emulatedInputReducer({ text: term.head, cursor: state.cursor.cursor }, action.payload);
-      return {
-        source: Source.fluentScope(state.source).set(state.cursor.path, { ...term, head: text }).scope,
-        cursor: { ...state.cursor, cursor },
-      };
+    };
+    switch (term.type) {
+      case "reference":
+        return traceInput(term, "identifier");
+      case "pi":
+        return traceInput(term, "head");
+      case "lambda":
+        return traceInput(term, "head");
     }
   }
   return state;

@@ -1,4 +1,4 @@
-import { EditorState } from "./editor-state";
+import { State } from "./editor-state";
 import {
   KeyCombination,
   getKeyCombinationFromKeyCombinationComponents,
@@ -27,7 +27,7 @@ export const keyboardOperations: {
 
 export function getOperationForKeyCombination(
   keyCombinationComponents: KeyCombinationComponents,
-  state: EditorState
+  state: State
 ): keyof typeof operations | undefined {
   const { key } = keyCombinationComponents;
   const keyCombination = getKeyCombinationFromKeyCombinationComponents(keyCombinationComponents);
@@ -42,7 +42,7 @@ export function getOperationForKeyCombination(
   return;
 }
 
-export function getPossibleKeyboardOperations(state: EditorState) {
+export function getPossibleKeyboardOperations(state: State) {
   return Object.entries(keyboardOperations).flatMap(([keyCombination]) => {
     const keyCombinationComponents = getKeyCombinationComponentsFromKeyCombination(keyCombination as KeyCombination);
     const operation = getOperationForKeyCombination(keyCombinationComponents, state);

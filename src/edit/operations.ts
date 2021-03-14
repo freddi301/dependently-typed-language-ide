@@ -1,10 +1,10 @@
-import { EditorState } from "./editor-state";
+import { State } from "./editor-state";
 import { EmulatedInputState } from "./emulated-input";
 import * as Source from "../core/source";
 import * as Path from "../core/path";
 
 // TODO should not use throw
-type Operation = (state: EditorState) => EditorState;
+type Operation = (state: State) => State;
 
 const emptyReference: Source.Term = { type: "reference", identifier: "" };
 

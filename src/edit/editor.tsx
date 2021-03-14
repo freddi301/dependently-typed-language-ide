@@ -6,11 +6,10 @@ import { getPossibleKeyboardOperations } from "./keyboard-operations";
 import * as Path from "../core/path";
 import * as Source from "../core/source";
 import { getType, getValue, prepareScope, unprepareTerm, PreparedTerm } from "../core/compute";
-import { editorReducer, emptyState, EditorState, EditorAction } from "./editor-state";
-import { type } from "node:os";
+import * as Editor from "./editor-state";
 
-export function Editor() {
-  const [state, dispatch] = useReducer(editorReducer, emptyState);
+export function EditorComponent() {
+  const [state, dispatch] = useReducer(Editor.reducer, Editor.emptyState);
   useLayoutEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       event.preventDefault();
@@ -84,11 +83,11 @@ export function Editor() {
   );
 }
 
-function makeViewTerm(state: EditorState, dispatch: (action: EditorAction) => void) {
+function makeViewTerm(state: Editor.State, dispatch: (action: Editor.Action) => void) {
   function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
     const hasCursor = state.cursor.type === "entry" ? Path.fluent(path).isEqual(state.cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
-    const cursorHere = () => dispatch({ type: "cursor", path });
+    const cursorHere = () => dispatch({ type: "cursor", payload: path });
     const childPath = (leaf: string) => Path.fluent(path).child(leaf).path;
     const parens = (symbol: string) =>
       showParens && (
