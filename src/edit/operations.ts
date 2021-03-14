@@ -421,6 +421,25 @@ const suggestionChoose: Operation = (state) => {
   };
 };
 
+const suggestionQuickChooseFirst: Operation = (state) => {
+  const suggestions = getSuggestions(state);
+  const suggestion = suggestions[0];
+  if (!suggestion) throw new Error();
+  const { source, cursor } = History.getCurrent(state.history);
+  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
+  if (cursor.type !== "entry") throw new Error();
+  return {
+    history: do_({
+      source: Source.fluentScope(source).set(cursor.path, {
+        type: "reference",
+        identifier: suggestion,
+      }).scope,
+      cursor: { type: "entry", path: cursor.path, cursor: suggestion.length },
+    }),
+    suggestionIndex: null,
+  };
+};
+
 export const operations = {
   addEntry,
   addEntryThenCursorToType,
@@ -446,4 +465,5 @@ export const operations = {
   suggestionUp,
   suggestionDown,
   suggestionChoose,
+  suggestionQuickChooseFirst,
 };

@@ -22,17 +22,18 @@ export function EditorComponent() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
   const { source, cursor } = History.getCurrent(state.history);
-  const viewTerm = makeViewTerm({ source, cursor }, dispatch);
+  const suggestions = getSuggestions(state);
+  const viewTerm = makeViewTerm({ source, cursor }, dispatch, suggestions);
   const viewDerivedTerm = (term: Compute.PreparedTerm) =>
     viewTerm(Compute.unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   const preparedScope = Compute.prepareScope(source);
-  const termUnderCursor = cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
-  const type = tryIt(() => Compute.getType(termUnderCursor, preparedScope));
-  const value = tryIt(() => Compute.getValue(termUnderCursor, preparedScope));
+  const prepatredTermUnderCursor: Compute.PreparedTerm | null =
+    cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
+  const type = tryIt(() => prepatredTermUnderCursor && Compute.getType(prepatredTermUnderCursor, preparedScope));
+  const value = tryIt(() => prepatredTermUnderCursor && Compute.getValue(prepatredTermUnderCursor, preparedScope));
   const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
     !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
-  const suggestions = getSuggestions(state);
   return (
     <div
       style={{
@@ -51,9 +52,14 @@ export function EditorComponent() {
           {Object.entries(source).map(([entry, { type, value }]) => {
             const prepared = preparedScope[entry];
             if (!prepared) throw new Error();
-            const annotatedType = Compute.getValue(prepared.type, preparedScope);
-            const derivedType = Compute.getType(prepared.value, preparedScope);
-            const hasError = !Compute.isEqual(annotatedType, derivedType) && !Source.isNullTerm(type) && !Source.isNullTerm(value);
+            const annotatedType = tryIt(() => Compute.getValue(prepared.type, preparedScope));
+            const derivedType = tryIt(() => Compute.getType(prepared.value, preparedScope));
+            const hasError =
+              annotatedType &&
+              derivedType &&
+              !Compute.isEqual(annotatedType, derivedType) &&
+              !Source.isNullTerm(type) &&
+              !Source.isNullTerm(value);
             return (
               <React.Fragment key={entry}>
                 <div style={{ padding: "0 1ch" }}>
@@ -71,7 +77,7 @@ export function EditorComponent() {
                     </>
                   )}
                 </div>
-                {hasError && (
+                {hasError && annotatedType && derivedType && (
                   <div style={{ backgroundColor: colors.backgroundDark, padding: "0 1ch" }}>
                     <div style={{ color: colors.red }}>type error</div>
                     <div>expected: {viewDerivedTerm(annotatedType)}</div>
@@ -141,7 +147,7 @@ export function EditorComponent() {
   );
 }
 
-function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action: Editor.Action) => void) {
+function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action: Editor.Action) => void, suggestions: Array<string>) {
   function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
     const hasCursor = cursor.type === "entry" ? Path.fluent(path).isEqual(cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
@@ -168,7 +174,12 @@ function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action:
       }
       case "reference": {
         if (hasCursor && cursor.type === "entry") {
-          return <EmulatedInput state={{ text: term.identifier, cursor: cursor.cursor }} />;
+          return (
+            <>
+              <EmulatedInput state={{ text: term.identifier, cursor: cursor.cursor }} />
+              <span style={{ color: colors.gray }}> {suggestions[0]}</span>
+            </>
+          );
         }
         return (
           <span

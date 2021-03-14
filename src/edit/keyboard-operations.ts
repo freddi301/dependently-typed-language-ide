@@ -11,7 +11,7 @@ export const keyboardOperations: {
   [K in KeyCombination]?: { [K in keyof typeof operations]?: null };
 } = {
   // operation name order is important
-  Enter: { suggestionChoose: null, addEntry: null, turnIntoType: null },
+  Enter: { suggestionChoose: null, turnIntoType: null, suggestionQuickChooseFirst: null, addEntry: null },
   Escape: { suggestionStop: null, resetCursor: null },
   ":": { moveCursorToType: null, addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
   "=": { moveCursorToValue: null, addEntryThenCursorToValue: null, turnIntoLambdaHeadThenCursorToFrom: null },

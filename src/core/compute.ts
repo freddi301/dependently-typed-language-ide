@@ -202,7 +202,7 @@ export function getType(term: PreparedTerm, scope: PreparedScope): PreparedTerm 
       const leftType = getType(term.left, scope);
       if (leftType.type !== "pi") {
         // TODO report error
-        throw new Error();
+        return nullTerm;
       }
       const rightType = getType(term.right, scope);
       if (!isEqual(leftType.from, rightType)) {

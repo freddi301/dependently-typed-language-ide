@@ -90,3 +90,10 @@ export function reducer(state: State, action: Action): State {
   }
   return state;
 }
+
+export function getTextUnderCursor(state: State) {
+  const { source, cursor } = History.getCurrent(state.history);
+  const termUnderCursor = cursor.type === "entry" && Source.fluentScope(source).get(cursor.path).term;
+  const textUnderCursor = termUnderCursor && termUnderCursor.type === "reference" && termUnderCursor.identifier;
+  return textUnderCursor || null;
+}
