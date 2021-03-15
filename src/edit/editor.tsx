@@ -25,9 +25,9 @@ export function EditorComponent() {
   const preparedScope = Compute.prepareScope(source);
   const suggestions = getSuggestions(state);
   const viewTerm = makeViewTerm(cursor, dispatch, suggestions, preparedScope);
-  const viewDerivedTerm = (term: Compute.PreparedTerm) => viewTerm(Compute.unprepareTerm(term), false, null);
+  const viewDerivedTerm = (term: Compute.Term) => viewTerm(Compute.unprepareTerm(term), false, null);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
-  const prepatredTermUnderCursor: Compute.PreparedTerm | null =
+  const prepatredTermUnderCursor: Compute.Term | null =
     cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
   const type = tryIt(() => prepatredTermUnderCursor && Compute.getType(prepatredTermUnderCursor, preparedScope));
   const value = tryIt(() => prepatredTermUnderCursor && Compute.getValue(prepatredTermUnderCursor, preparedScope));
@@ -150,10 +150,10 @@ function makeViewTerm(
   cursor: Editor.SourceState["cursor"],
   dispatch: (action: Editor.Action) => void,
   suggestions: Array<string>,
-  preparedScope: Compute.PreparedScope
+  preparedScope: Compute.Scope
 ) {
   function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute | null) {
-    const preparedTerm: Compute.PreparedTerm | null = path && (Source.fluentScope(preparedScope as any).get(path).term as any);
+    const preparedTerm: Compute.Term | null = path && (Source.fluentScope(preparedScope as any).get(path).term as any);
     const hasCursor = cursor.type === "entry" && path ? Path.fluent(path).isEqual(cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
     const cursorHere = () => path && dispatch({ type: "cursor", payload: path });

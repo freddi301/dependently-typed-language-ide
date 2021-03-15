@@ -1,65 +1,78 @@
 import * as Source from "./source";
+import * as Path from "./path";
 
-export type PreparedTerm =
-  | { type: "free"; identifier: string }
-  | { type: "type"; universe: number }
-  | { type: "reference"; identifier: string; type_: PreparedTerm }
-  | { type: "application"; left: PreparedTerm; right: PreparedTerm }
-  | { type: "pi"; head: string; from: PreparedTerm; to: PreparedTerm }
-  | { type: "lambda"; head: string; from: PreparedTerm; body: PreparedTerm };
+export type Term =
+  | { type: "free"; identifier: string; path: Path.Absolute | null; typeScope: Record<string, Term> }
+  | { type: "type"; universe: number; path: Path.Absolute | null; typeScope: Record<string, Term> }
+  | { type: "reference"; identifier: string; type_: Term; path: Path.Absolute | null; typeScope: Record<string, Term> }
+  | { type: "application"; left: Term; right: Term; path: Path.Absolute | null; typeScope: Record<string, Term> }
+  | { type: "pi"; head: string; from: Term; to: Term; path: Path.Absolute | null; typeScope: Record<string, Term> }
+  | { type: "lambda"; head: string; from: Term; body: Term; path: Path.Absolute | null; typeScope: Record<string, Term> };
 
-export type PreparedScope = Record<string, { type: PreparedTerm; value: PreparedTerm }>;
+export type Scope = Record<string, { type: Term; value: Term }>;
 
-function prepareTerm(term: Source.Term, typeScope: Record<string, PreparedTerm>): PreparedTerm {
+function prepareTerm(term: Source.Term, typeScope: Record<string, Term>, path: Path.Absolute): Term {
   switch (term.type) {
     case "type": {
-      return { type: "type", universe: term.universe };
+      return { type: "type", universe: term.universe, path, typeScope };
     }
     case "reference": {
       const type_ = typeScope[term.identifier];
       if (type_) {
-        return { type: "reference", identifier: term.identifier, type_ };
+        return { type: "reference", identifier: term.identifier, type_, path, typeScope };
       } else {
-        return { type: "free", identifier: term.identifier };
+        return { type: "free", identifier: term.identifier, path, typeScope };
       }
     }
     case "application": {
       return {
         type: "application",
-        left: prepareTerm(term.left, typeScope),
-        right: prepareTerm(term.right, typeScope),
+        left: prepareTerm(term.left, typeScope, Path.fluent(path).child("left").path),
+        right: prepareTerm(term.right, typeScope, Path.fluent(path).child("right").path),
+        path,
+        typeScope,
       };
     }
     case "pi": {
-      const from = prepareTerm(term.from, typeScope);
+      const from = prepareTerm(term.from, typeScope, Path.fluent(path).child("from").path);
       return {
         type: "pi",
         head: term.head,
         from,
-        to: prepareTerm(term.to, { ...typeScope, [term.head]: from }),
+        to: prepareTerm(term.to, { ...typeScope, [term.head]: from }, Path.fluent(path).child("to").path),
+        path,
+        typeScope,
       };
     }
     case "lambda": {
-      const from = prepareTerm(term.from, typeScope);
+      const from = prepareTerm(term.from, typeScope, Path.fluent(path).child("from").path);
       return {
         type: "lambda",
         head: term.head,
         from,
-        body: prepareTerm(term.body, { ...typeScope, [term.head]: from }),
+        body: prepareTerm(term.body, { ...typeScope, [term.head]: from }, Path.fluent(path).child("body").path),
+        path,
+        typeScope,
       };
     }
   }
 }
 
-export function prepareScope(scope: Source.Scope): PreparedScope {
+export function prepareScope(scope: Source.Scope): Scope {
   return Object.fromEntries(
     Object.entries(scope).map(([entry, { type, value }]) => {
-      return [entry, { type: prepareTerm(type, {}), value: prepareTerm(value, {}) }];
+      return [
+        entry,
+        {
+          type: prepareTerm(type, {}, { entry, level: "type", relative: [] }),
+          value: prepareTerm(value, {}, { entry, level: "value", relative: [] }),
+        },
+      ];
     })
   );
 }
 
-export function unprepareTerm(term: PreparedTerm): Source.Term {
+export function unprepareTerm(term: Term): Source.Term {
   switch (term.type) {
     case "free": {
       return { type: "reference", identifier: term.identifier };
@@ -98,7 +111,7 @@ export function unprepareTerm(term: PreparedTerm): Source.Term {
   }
 }
 
-export function isEqual(a: PreparedTerm, b: PreparedTerm): boolean {
+export function isEqual(a: Term, b: Term): boolean {
   switch (a.type) {
     case "free":
       return a.type === b.type && a.identifier === b.identifier;
@@ -115,24 +128,25 @@ export function isEqual(a: PreparedTerm, b: PreparedTerm): boolean {
   }
 }
 
-function replace(old: string, new_: PreparedTerm, term: PreparedTerm): PreparedTerm {
+// TODO replace inside typescope too?
+function replace(old: string, new_: Term, term: Term): Term {
   switch (term.type) {
     case "free": {
-      return { type: "free", identifier: term.identifier };
+      return term;
     }
     case "type": {
-      return { type: "type", universe: term.universe };
+      return term;
     }
     case "reference": {
       if (term.identifier === old) {
         return new_;
       } else {
-        return { type: "reference", identifier: term.identifier, type_: replace(old, new_, term.type_) };
+        return { ...term, type_: replace(old, new_, term.type_) };
       }
     }
     case "application": {
       return {
-        type: "application",
+        ...term,
         left: replace(old, new_, term.left),
         right: replace(old, new_, term.right),
       };
@@ -140,15 +154,12 @@ function replace(old: string, new_: PreparedTerm, term: PreparedTerm): PreparedT
     case "pi": {
       if (term.head === old) {
         return {
-          type: "pi",
-          head: term.head,
+          ...term,
           from: replace(old, new_, term.from),
-          to: term.to,
         };
       } else {
         return {
-          type: "pi",
-          head: term.head,
+          ...term,
           from: replace(old, new_, term.from),
           to: replace(old, new_, term.to),
         };
@@ -157,15 +168,12 @@ function replace(old: string, new_: PreparedTerm, term: PreparedTerm): PreparedT
     case "lambda": {
       if (term.head === old) {
         return {
-          type: "lambda",
-          head: term.head,
+          ...term,
           from: replace(old, new_, term.from),
-          body: term.body,
         };
       } else {
         return {
-          type: "lambda",
-          head: term.head,
+          ...term,
           from: replace(old, new_, term.from),
           body: replace(old, new_, term.body),
         };
@@ -174,12 +182,12 @@ function replace(old: string, new_: PreparedTerm, term: PreparedTerm): PreparedT
   }
 }
 
-const nullTerm: PreparedTerm = { type: "free", identifier: "" };
-function isNullTerm(term: PreparedTerm): boolean {
+const nullTerm: Term = { type: "free", identifier: "", typeScope: {}, path: null };
+function isNullTerm(term: Term): boolean {
   return term.type === "free" && term.identifier === "";
 }
 
-export function getType(term: PreparedTerm, scope: PreparedScope): PreparedTerm {
+export function getType(term: Term, scope: Scope): Term {
   switch (term.type) {
     case "free": {
       const fromScope = scope[term.identifier];
@@ -193,7 +201,7 @@ export function getType(term: PreparedTerm, scope: PreparedScope): PreparedTerm 
       return getType(fromScope.value, scope);
     }
     case "type": {
-      return { type: "type", universe: term.universe + 1 };
+      return { type: "type", universe: term.universe + 1, path: null, typeScope: {} };
     }
     case "reference": {
       return term.type_;
@@ -222,45 +230,44 @@ export function getType(term: PreparedTerm, scope: PreparedScope): PreparedTerm 
       return {
         type: "type",
         universe: Math.max(fromType.type === "type" ? fromType.universe : -1, toType.type === "type" ? toType.universe : -1),
+        path: null,
+        typeScope: {},
       };
     }
     case "lambda": {
-      return { type: "pi", head: term.head, from: term.from, to: getType(term.body, scope) };
+      return { type: "pi", head: term.head, from: term.from, to: getType(term.body, scope), path: null, typeScope: {} };
     }
   }
 }
 
-export function getValue(term: PreparedTerm, scope: PreparedScope): PreparedTerm {
+export function getValue(term: Term, scope: Scope): Term {
   switch (term.type) {
     case "free": {
       const fromScope = scope[term.identifier];
       if (!fromScope || isNullTerm(fromScope.value)) {
-        return {
-          type: "free",
-          identifier: term.identifier,
-        };
+        return term;
       }
       return fromScope.value;
     }
     case "type": {
-      return { type: "type", universe: term.universe };
+      return term;
     }
     case "reference": {
-      return { type: "reference", identifier: term.identifier, type_: term.type_ };
+      return term;
     }
     case "application": {
       const left = getValue(term.left, scope);
       if (left.type === "lambda") {
         return getValue(replace(left.head, term.right, left.body), scope);
       } else {
-        return { type: "application", left, right: term.right };
+        return { ...term, left };
       }
     }
     case "pi": {
-      return { type: "pi", head: term.head, from: term.from, to: term.to };
+      return term;
     }
     case "lambda": {
-      return { type: "lambda", head: term.head, from: term.from, body: term.body };
+      return term;
     }
   }
 }
