@@ -11,7 +11,7 @@ export type Term =
 
 export type Scope = Record<string, { type: Term; value: Term }>;
 
-function prepareTerm(term: Source.Term, typeScope: Record<string, Term>, path: Path.Absolute): Term {
+export function prepareTerm(term: Source.Term, typeScope: Record<string, Term>, path: Path.Absolute): Term {
   switch (term.type) {
     case "type": {
       return { type: "type", universe: term.universe, path, typeScope };

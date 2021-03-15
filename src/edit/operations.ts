@@ -413,9 +413,9 @@ const suggestionChoose: Operation = (state) => {
     history: do_({
       source: Source.fluentScope(source).set(cursor.path, {
         type: "reference",
-        identifier: suggestion,
+        identifier: suggestion.identifier,
       }).scope,
-      cursor: { type: "entry", path: cursor.path, cursor: suggestion.length },
+      cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
   };
@@ -432,9 +432,9 @@ const suggestionQuickChooseFirst: Operation = (state) => {
     history: do_({
       source: Source.fluentScope(source).set(cursor.path, {
         type: "reference",
-        identifier: suggestion,
+        identifier: suggestion.identifier,
       }).scope,
-      cursor: { type: "entry", path: cursor.path, cursor: suggestion.length },
+      cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
   };

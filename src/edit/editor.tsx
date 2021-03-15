@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useReducer, useState } from "react";
+import React, { useLayoutEffect, useReducer, useRef, useState } from "react";
 import { colors } from "../App";
 import { EmulatedInput } from "./emulated-input";
 import { getKeyCombinationComponentsFromEvent, ViewKeyCombination } from "./key-combinations";
@@ -8,7 +8,7 @@ import * as Source from "../core/source";
 import * as Compute from "../core/compute";
 import * as Editor from "./editor-state";
 import * as History from "./history-state";
-import { getSuggestions } from "./suggestions";
+import * as Suggestions from "./suggestions";
 import { copyToClipboard, download, upload } from "../serialization/browser";
 
 export function EditorComponent() {
@@ -23,7 +23,7 @@ export function EditorComponent() {
   }, []);
   const { source, cursor } = History.getCurrent(state.history);
   const preparedScope = Compute.prepareScope(source);
-  const suggestions = getSuggestions(state);
+  const suggestions = Suggestions.getSuggestions(state);
   const viewTerm = makeViewTerm(cursor, dispatch, suggestions, preparedScope);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   const preparedTermUnderCursor: Compute.Term | null =
@@ -73,7 +73,7 @@ export function EditorComponent() {
                     <>
                       <span style={{ color: colors.purple }}> = </span>
                       {annotatedTypeErrorNode}
-                      {viewTerm(value, false)}
+                      {viewTerm(value, annotatedTypeError)}
                     </>
                   )}
                 </div>
@@ -90,26 +90,44 @@ export function EditorComponent() {
       <div style={{ gridColumn: 2 }}>
         <Infos
           infos={{
-            "computed type": type && viewTerm(type, false),
-            "computed value": value && viewTerm(value, false),
-            intellisense: suggestions.map((suggestion, index) => {
-              const isSelected = index === state.suggestionIndex;
-              return (
-                <div key={suggestion} style={{ backgroundColor: isSelected ? colors.background : colors.backgroundDark }}>
-                  {suggestion}
-                </div>
-              );
-            }),
-            "keyboard shortcuts": possibleKeyboardOperations.map(({ keyCombination, operation }) => {
-              return (
-                <div key={keyCombination} style={{ display: "flex", alignItems: "center" }}>
-                  <ViewKeyCombination keyCombination={keyCombination} />
-                  <div>{operation}</div>
-                </div>
-              );
-            }),
-            extra: (
+            "computed type": <div style={{ padding: "0 2ch" }}>{type && viewTerm(type, false)}</div>,
+            "computed value": <div style={{ padding: "0 2ch" }}>{value && viewTerm(value, false)}</div>,
+            intellisense: (
               <div>
+                {suggestions.map(({ identifier, type }, index) => {
+                  const isSelected = index === state.suggestionIndex;
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        backgroundColor: isSelected ? colors.background : colors.backgroundDark,
+                        borderLeft: `1ch solid ${isSelected ? colors.blue : "transparent"}`,
+                        paddingLeft: "1ch",
+                      }}
+                    >
+                      {isSelected && <ScrollMeIntoView />}
+                      {identifier}
+                      <span style={{ color: colors.purple }}> : </span>
+                      {viewTerm(type, false)}
+                    </div>
+                  );
+                })}
+              </div>
+            ),
+            "keyboard shortcuts": (
+              <div style={{ padding: "0 2ch" }}>
+                {possibleKeyboardOperations.map(({ keyCombination, operation }) => {
+                  return (
+                    <div key={keyCombination} style={{ display: "flex", alignItems: "center" }}>
+                      <ViewKeyCombination keyCombination={keyCombination} />
+                      <div>{operation}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ),
+            extra: (
+              <div style={{ padding: "0 2ch" }}>
                 <button
                   onClick={() => {
                     download(JSON.stringify(source), "application/json");
@@ -143,7 +161,7 @@ export function EditorComponent() {
 function makeViewTerm(
   cursor: Editor.SourceState["cursor"],
   dispatch: (action: Editor.Action) => void,
-  suggestions: Array<string>,
+  suggestions: Array<Suggestions.Suggestion>,
   preparedScope: Compute.Scope
 ) {
   function viewTerm(term: Compute.Term, showParens: boolean) {
@@ -172,15 +190,18 @@ function makeViewTerm(
       case "free":
       case "reference": {
         if (hasCursor && cursor.type === "entry") {
-          const showSuggestion = suggestions[0] && suggestions[0] !== term.identifier;
+          const firstSuggestion = suggestions[0];
+          const showSuggestion = firstSuggestion && firstSuggestion.identifier !== term.identifier;
           return (
             <>
               <EmulatedInput state={{ text: term.identifier, cursor: cursor.cursor }} />
-              {showSuggestion && (
+              {showSuggestion && firstSuggestion && (
                 <>
                   {" "}
-                  <span style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.green}`, padding: "0 1ch" }}>
-                    {suggestions[0]}
+                  <span style={{ backgroundColor: colors.backgroundDark, borderLeft: `1ch solid ${colors.blue}`, padding: "0 1ch" }}>
+                    {firstSuggestion.identifier}
+                    {/* <span style={{ color: colors.purple }}> : </span>
+                    {viewTerm(firstSuggestion.type, false)} */}
                   </span>
                 </>
               )}
@@ -221,7 +242,7 @@ function makeViewTerm(
           <span style={{ backgroundColor }}>
             {parens("(")}
             {leftMustBePiErrorNode}
-            {viewTerm(term.left, term.left.type !== "application")}
+            {viewTerm(term.left, term.left.type !== "application" || leftMustBePiError)}
             {punctuation(" ")}
             {rightMustBeLeftFromErrorNode}
             {viewTerm(term.right, true)}
@@ -255,18 +276,18 @@ function makeViewTerm(
                 {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
                 {punctuation(" : ")}
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, false)}
+                {viewTerm(term.from, fromMustBeTypeError)}
                 {punctuation(")")}
               </>
             ) : (
               <>
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, false)}
+                {viewTerm(term.from, fromMustBeTypeError)}
               </>
             )}
             {punctuation(" -> ")}
             {toMustBeTypeErrorNode}
-            {viewTerm(term.to, false)}
+            {viewTerm(term.to, toMustBeTypeError)}
             {parens(")")}
           </span>
         );
@@ -287,7 +308,7 @@ function makeViewTerm(
             {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
             {punctuation(" : ")}
             {fromMustBeTypeErrorNode}
-            {viewTerm(term.from, false)}
+            {viewTerm(term.from, fromMustBeTypeError)}
             {punctuation(")")}
             {punctuation(" => ")}
             {viewTerm(term.body, false)}
@@ -357,7 +378,7 @@ function Infos({ infos }: { infos: Record<string, React.ReactNode> }) {
             </div>
             {isOpen && (
               <div style={{ flexGrow: 1, backgroundColor: colors.backgroundDark, position: "relative", overflow: "auto" }}>
-                <div style={{ position: "absolute", width: "100%", padding: "0 2ch", boxSizing: "border-box" }}>{body}</div>
+                <div style={{ position: "absolute", width: "100%", boxSizing: "border-box" }}>{body}</div>
               </div>
             )}
           </div>
@@ -365,4 +386,16 @@ function Infos({ infos }: { infos: Record<string, React.ReactNode> }) {
       })}
     </div>
   );
+}
+
+function ScrollMeIntoView() {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useLayoutEffect(() => {
+    ref.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+      inline: "center",
+    });
+  }, []);
+  return <span ref={ref} />;
 }

@@ -28,7 +28,7 @@ body {
   width: 1ch;
   height: 1ch;
 }
-*:hover::-webkit-scrollbar-thumb {
+*::-webkit-scrollbar-thumb {
   background-color: #61afef;
 }
 *::-webkit-scrollbar-corner {

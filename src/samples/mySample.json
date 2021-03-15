@@ -1,0 +1,142 @@
+{
+  "color": { "type": { "type": "type", "universe": 1 }, "value": { "type": "reference", "identifier": "" } },
+  "boolean": { "type": { "type": "type", "universe": 1 }, "value": { "type": "reference", "identifier": "" } },
+  "true": { "type": { "type": "reference", "identifier": "boolean" }, "value": { "type": "reference", "identifier": "" } },
+  "false": { "type": { "type": "reference", "identifier": "boolean" }, "value": { "type": "reference", "identifier": "" } },
+  "red": { "type": { "type": "reference", "identifier": "color" }, "value": { "type": "reference", "identifier": "" } },
+  "green": { "type": { "type": "reference", "identifier": "color" }, "value": { "type": "reference", "identifier": "" } },
+  "blue": { "type": { "type": "reference", "identifier": "color" }, "value": { "type": "reference", "identifier": "" } },
+  "maybe": {
+    "type": { "type": "pi", "head": "", "from": { "type": "type", "universe": 1 }, "to": { "type": "type", "universe": 1 } },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "none": {
+    "type": {
+      "type": "pi",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "to": {
+        "type": "application",
+        "left": { "type": "reference", "identifier": "maybe" },
+        "right": { "type": "reference", "identifier": "t" }
+      }
+    },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "some": {
+    "type": {
+      "type": "pi",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "to": {
+        "type": "pi",
+        "head": "v",
+        "from": { "type": "reference", "identifier": "t" },
+        "to": {
+          "type": "application",
+          "left": { "type": "reference", "identifier": "maybe" },
+          "right": { "type": "reference", "identifier": "t" }
+        }
+      }
+    },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "identity": {
+    "type": {
+      "type": "pi",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "to": {
+        "type": "pi",
+        "head": "x",
+        "from": { "type": "reference", "identifier": "t" },
+        "to": { "type": "pi", "head": "y", "from": { "type": "reference", "identifier": "t" }, "to": { "type": "type", "universe": 1 } }
+      }
+    },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "reflection": {
+    "type": {
+      "type": "pi",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "to": {
+        "type": "pi",
+        "head": "v",
+        "from": { "type": "reference", "identifier": "t" },
+        "to": {
+          "type": "application",
+          "left": {
+            "type": "application",
+            "left": {
+              "type": "application",
+              "left": { "type": "reference", "identifier": "identity" },
+              "right": { "type": "reference", "identifier": "t" }
+            },
+            "right": { "type": "reference", "identifier": "v" }
+          },
+          "right": { "type": "reference", "identifier": "v" }
+        }
+      }
+    },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "i1": {
+    "type": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": {
+          "type": "application",
+          "left": { "type": "reference", "identifier": "identity" },
+          "right": { "type": "reference", "identifier": "color" }
+        },
+        "right": { "type": "reference", "identifier": "red" }
+      },
+      "right": {
+        "type": "application",
+        "left": {
+          "type": "application",
+          "left": { "type": "reference", "identifier": "first" },
+          "right": { "type": "reference", "identifier": "red" }
+        },
+        "right": { "type": "reference", "identifier": "blue" }
+      }
+    },
+    "value": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": { "type": "reference", "identifier": "reflection" },
+        "right": { "type": "reference", "identifier": "color" }
+      },
+      "right": { "type": "reference", "identifier": "red" }
+    }
+  },
+  "s1": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": { "type": "reference", "identifier": "some" },
+        "right": { "type": "reference", "identifier": "color" }
+      },
+      "right": { "type": "reference", "identifier": "green" }
+    }
+  },
+  "first": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "lambda",
+      "head": "x",
+      "from": { "type": "reference", "identifier": "color" },
+      "body": {
+        "type": "lambda",
+        "head": "y",
+        "from": { "type": "reference", "identifier": "color" },
+        "body": { "type": "reference", "identifier": "x" }
+      }
+    }
+  }
+}
