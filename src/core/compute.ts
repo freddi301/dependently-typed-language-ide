@@ -8,7 +8,7 @@ export type PreparedTerm =
   | { type: "pi"; head: string; from: PreparedTerm; to: PreparedTerm }
   | { type: "lambda"; head: string; from: PreparedTerm; body: PreparedTerm };
 
-type PreparedScope = Record<string, { type: PreparedTerm; value: PreparedTerm }>;
+export type PreparedScope = Record<string, { type: PreparedTerm; value: PreparedTerm }>;
 
 function prepareTerm(term: Source.Term, typeScope: Record<string, PreparedTerm>): PreparedTerm {
   switch (term.type) {

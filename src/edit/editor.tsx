@@ -22,12 +22,11 @@ export function EditorComponent() {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
   const { source, cursor } = History.getCurrent(state.history);
-  const suggestions = getSuggestions(state);
-  const viewTerm = makeViewTerm({ source, cursor }, dispatch, suggestions);
-  const viewDerivedTerm = (term: Compute.PreparedTerm) =>
-    viewTerm(Compute.unprepareTerm(term), false, { entry: "*", level: "type", relative: [] });
-  const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   const preparedScope = Compute.prepareScope(source);
+  const suggestions = getSuggestions(state);
+  const viewTerm = makeViewTerm(cursor, dispatch, suggestions, preparedScope);
+  const viewDerivedTerm = (term: Compute.PreparedTerm) => viewTerm(Compute.unprepareTerm(term), false, null);
+  const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   const prepatredTermUnderCursor: Compute.PreparedTerm | null =
     cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
   const type = tryIt(() => prepatredTermUnderCursor && Compute.getType(prepatredTermUnderCursor, preparedScope));
@@ -147,12 +146,18 @@ export function EditorComponent() {
   );
 }
 
-function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action: Editor.Action) => void, suggestions: Array<string>) {
-  function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute) {
-    const hasCursor = cursor.type === "entry" ? Path.fluent(path).isEqual(cursor.path) : false;
+function makeViewTerm(
+  cursor: Editor.SourceState["cursor"],
+  dispatch: (action: Editor.Action) => void,
+  suggestions: Array<string>,
+  preparedScope: Compute.PreparedScope
+) {
+  function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute | null) {
+    const preparedTerm: Compute.PreparedTerm | null = path && (Source.fluentScope(preparedScope as any).get(path).term as any);
+    const hasCursor = cursor.type === "entry" && path ? Path.fluent(path).isEqual(cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
-    const cursorHere = () => dispatch({ type: "cursor", payload: path });
-    const childPath = (leaf: string) => Path.fluent(path).child(leaf).path;
+    const cursorHere = () => path && dispatch({ type: "cursor", payload: path });
+    const childPath = (leaf: string) => path && Path.fluent(path).child(leaf).path;
     const parens = (symbol: string) =>
       showParens && (
         <span style={{ color: colors.purple }} onClick={cursorHere}>
@@ -194,6 +199,8 @@ function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action:
         );
       }
       case "application": {
+        // left must have type pi
+        // right must have type left.from
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
@@ -205,6 +212,8 @@ function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action:
         );
       }
       case "pi": {
+        // from must have type type
+        // to must have type type
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
@@ -226,12 +235,21 @@ function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action:
         );
       }
       case "lambda": {
+        const fromMustBeTypeError = (() => {
+          if (preparedTerm) {
+            if (preparedTerm.type !== "lambda") throw new Error();
+            const fromType = Compute.getType(preparedTerm.from, preparedScope);
+            return fromType.type !== "type";
+          }
+          return false;
+        })();
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
             {punctuation("(")}
             {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
             {punctuation(" : ")}
+            {fromMustBeTypeError && <ErrorTooltip>must be a type</ErrorTooltip>}
             {viewTerm(term.from, false, childPath("from"))}
             {punctuation(")")}
             {punctuation(" => ")}
@@ -243,6 +261,28 @@ function makeViewTerm({ source, cursor }: Editor.SourceState, dispatch: (action:
     }
   }
   return viewTerm;
+}
+
+function ErrorTooltip({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <div style={{ display: "inline-block", position: "relative" }}>
+      <div style={{ color: colors.red, cursor: "pointer" }} onMouseEnter={() => setIsOpen(true)} onMouseLeave={() => setIsOpen(false)}>
+        !
+      </div>
+      <div
+        style={{
+          position: "absolute",
+          backgroundColor: colors.backgroundDark,
+          border: `1px solid ${colors.red}`,
+          padding: "0 1ch",
+        }}
+        hidden={!isOpen}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 function tryIt<T>(f: () => T) {
