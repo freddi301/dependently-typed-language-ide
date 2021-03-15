@@ -11,7 +11,7 @@ export type Term =
 
 export type Scope = Record<string, { type: Term; value: Term }>;
 
-export function prepareTerm(term: Source.Term, typeScope: Record<string, Term>, path: Path.Absolute): Term {
+function prepareTerm(term: Source.Term, typeScope: Record<string, Term>, path: Path.Absolute): Term {
   switch (term.type) {
     case "type": {
       return { type: "type", universe: term.universe, path, typeScope };
@@ -72,7 +72,7 @@ export function prepareScope(scope: Source.Scope): Scope {
   );
 }
 
-export function unprepareTerm(term: Term): Source.Term {
+function unprepareTerm(term: Term): Source.Term {
   switch (term.type) {
     case "free": {
       return { type: "reference", identifier: term.identifier };
@@ -187,7 +187,7 @@ export function isNullTerm(term: Term): boolean {
   return term.type === "free" && term.identifier === "";
 }
 
-export function getType(term: Term, scope: Scope): Term {
+function getType(term: Term, scope: Scope): Term {
   switch (term.type) {
     case "free": {
       const fromScope = scope[term.identifier];
@@ -240,78 +240,88 @@ export function getType(term: Term, scope: Scope): Term {
   }
 }
 
-export function getValue(term: Term, scope: Scope): Term {
+function getValue(term: Term, scope: Scope): Term {
   switch (term.type) {
     case "free": {
       const fromScope = scope[term.identifier];
       if (!fromScope || isNullTerm(fromScope.value)) {
-        return term;
+        return { ...term, path: null };
       }
       return fromScope.value;
-    }
-    case "type": {
-      return term;
-    }
-    case "reference": {
-      return term;
     }
     case "application": {
       const left = getValue(term.left, scope);
       if (left.type === "lambda") {
         return getValue(replace(left.head, term.right, left.body), scope);
       } else {
-        return { ...term, left };
+        return { ...term, left, path: null };
       }
     }
-    case "pi": {
-      return term;
-    }
+    case "reference":
+    case "type":
+    case "pi":
     case "lambda": {
-      return term;
+      return { ...term, path: null };
     }
   }
 }
 
-// let nextUID = 1;
-// function getUID() {
-//   return String(nextUID++);
-// }
+let nextUID = 1;
+function getUID() {
+  return String(nextUID++);
+}
 
-// export function getNormal(term: PreparedTerm, scope: Record<string, PreparedTerm>): PreparedTerm {
-//   term = getValue(term, scope);
-//   switch (term.type) {
-//     case "free": {
-//       return {
-//         type: "free",
-//         identifier: term.identifier,
-//       };
-//     }
-//     case "type": {
-//       return { type: "type", universe: term.universe };
-//     }
-//     case "reference": {
-//       return { type: "reference", identifier: term.identifier, type_: term.type_ };
-//     }
-//     case "application": {
-//       return {
-//         type: "application",
-//         left: getNormal(term.left, scope),
-//         right: getNormal(term.right, scope),
-//       };
-//     }
-//     case "pi": {
-//       const freeHead = getUID();
-//       const freeTo = replace(term.head, { type: "reference", identifier: freeHead }, term.to);
-//       const normalTo = getNormal(freeTo, scope);
-//       const boundTo = replace(freeHead, { type: "reference", identifier: term.head }, normalTo);
-//       return { type: "lambda", head: term.head, from: getNormal(term.from, scope), body: boundTo };
-//     }
-//     case "lambda": {
-//       const freeHead = getUID();
-//       const freeBody = replace(term.head, { type: "reference", identifier: freeHead }, term.body);
-//       const normalBody = getNormal(freeBody, scope);
-//       const boundBody = replace(freeHead, { type: "reference", identifier: term.head }, normalBody);
-//       return { type: "lambda", head: term.head, from: getNormal(term.from, scope), body: boundBody };
-//     }
-//   }
-// }
+function getNormal(term: Term, scope: Scope): Term {
+  term = getValue(term, scope);
+  switch (term.type) {
+    case "free":
+    case "type":
+    case "reference": {
+      return { ...term, path: null };
+    }
+    case "application": {
+      return {
+        ...term,
+        left: getNormal(term.left, scope),
+        right: getNormal(term.right, scope),
+        path: null,
+      };
+    }
+    case "pi": {
+      const normalFrom = getNormal(term.from, scope);
+      const freeHead = getUID();
+      const freeTo = replace(term.head, { type: "reference", identifier: freeHead, type_: normalFrom, path: null, typeScope: {} }, term.to);
+      const normalTo = getNormal(freeTo, scope);
+      const boundTo = replace(
+        freeHead,
+        { type: "reference", identifier: term.head, type_: normalFrom, path: null, typeScope: {} },
+        normalTo
+      );
+      return { ...term, head: term.head, from: normalFrom, to: boundTo, path: null };
+    }
+    case "lambda": {
+      const normalFrom = getNormal(term.from, scope);
+      const freeHead = getUID();
+      const freeBody = replace(
+        term.head,
+        { type: "reference", identifier: freeHead, type_: normalFrom, path: null, typeScope: {} },
+        term.body
+      );
+      const normalBody = getNormal(freeBody, scope);
+      const boundBody = replace(
+        freeHead,
+        { type: "reference", identifier: term.head, type_: normalFrom, path: null, typeScope: {} },
+        normalBody
+      );
+      return { ...term, head: term.head, from: normalFrom, body: boundBody, path: null };
+    }
+  }
+}
+
+export function getNormalValue(term: Term, scope: Scope) {
+  return getNormal(getValue(term, scope), scope);
+}
+
+export function getNormalType(term: Term, scope: Scope) {
+  return getNormal(getType(term, scope), scope);
+}

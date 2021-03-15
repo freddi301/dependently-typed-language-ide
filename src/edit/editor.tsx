@@ -28,8 +28,8 @@ export function EditorComponent() {
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
   const preparedTermUnderCursor: Compute.Term | null =
     cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
-  const type = preparedTermUnderCursor && Compute.getType(preparedTermUnderCursor, preparedScope);
-  const value = preparedTermUnderCursor && Compute.getValue(preparedTermUnderCursor, preparedScope);
+  const type = preparedTermUnderCursor && Compute.getNormalType(preparedTermUnderCursor, preparedScope);
+  const value = preparedTermUnderCursor && Compute.getNormalValue(preparedTermUnderCursor, preparedScope);
   const isShowable = (entry: string, level: "type" | "value", term: Compute.Term) =>
     !Compute.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   return (
@@ -48,8 +48,8 @@ export function EditorComponent() {
       <div style={{ gridColumn: 1, position: "relative", overflow: "overlay" }}>
         <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch 0" }}>
           {Object.entries(preparedScope).map(([entry, { type, value }]) => {
-            const annotatedType = Compute.getValue(type, preparedScope);
-            const derivedType = Compute.getType(value, preparedScope);
+            const annotatedType = Compute.getNormalValue(type, preparedScope);
+            const derivedType = Compute.getNormalType(value, preparedScope);
             const annotatedTypeError =
               !Compute.isNullTerm(type) && !Compute.isNullTerm(value) && !Compute.isEqual(annotatedType, derivedType);
             const annotatedTypeErrorNode = annotatedTypeError && (
@@ -59,6 +59,14 @@ export function EditorComponent() {
                 <div>detected: {viewTerm(derivedType, false)}</div>
               </ErrorTooltip>
             );
+            const annotatedTypeType = Compute.getNormalType(type, preparedScope);
+            const annotationMustBeTypeError = !Compute.isNullTerm(type) && annotatedTypeType.type !== "type";
+            const annotationMustBeTypeErrorNode = annotationMustBeTypeError && (
+              <ErrorTooltip>
+                <div style={{ color: colors.red }}>must be a type</div>
+                <div>detected: {viewTerm(annotatedTypeType, false)}</div>
+              </ErrorTooltip>
+            );
             return (
               <React.Fragment key={entry}>
                 <div style={{ padding: "0 1ch" }}>
@@ -66,6 +74,7 @@ export function EditorComponent() {
                   {type && isShowable(entry, "type", type) && (
                     <>
                       <span style={{ color: colors.purple }}> : </span>
+                      {annotationMustBeTypeErrorNode}
                       {viewTerm(type, false)}
                     </>
                   )}
@@ -73,7 +82,7 @@ export function EditorComponent() {
                     <>
                       <span style={{ color: colors.purple }}> = </span>
                       {annotatedTypeErrorNode}
-                      {viewTerm(value, annotatedTypeError)}
+                      {viewTerm(value, false)}
                     </>
                   )}
                 </div>
@@ -94,7 +103,7 @@ export function EditorComponent() {
             "computed value": <div style={{ padding: "0 2ch" }}>{value && viewTerm(value, false)}</div>,
             intellisense: (
               <div>
-                {suggestions.map(({ identifier, type }, index) => {
+                {suggestions.map(({ identifier, type, matchesExpectedType }, index) => {
                   const isSelected = index === state.suggestionIndex;
                   return (
                     <div
@@ -102,10 +111,16 @@ export function EditorComponent() {
                       style={{
                         backgroundColor: isSelected ? colors.background : colors.backgroundDark,
                         borderLeft: `1ch solid ${isSelected ? colors.blue : "transparent"}`,
-                        paddingLeft: "1ch",
                       }}
                     >
                       {isSelected && <ScrollMeIntoView />}
+                      {
+                        {
+                          yes: <span style={{ color: colors.green }}> ✓ </span>,
+                          no: <span style={{ color: colors.red }}> ✗ </span>,
+                          unknown: " ",
+                        }[matchesExpectedType]
+                      }
                       {identifier}
                       <span style={{ color: colors.purple }}> : </span>
                       {viewTerm(type, false)}
@@ -137,7 +152,7 @@ export function EditorComponent() {
                 </button>
                 <button
                   onClick={() => {
-                    upload((text) => JSON.parse(text));
+                    upload((text) => dispatch({ type: "load", payload: JSON.parse(text) }));
                   }}
                 >
                   updload
@@ -221,7 +236,7 @@ function makeViewTerm(
         );
       }
       case "application": {
-        const leftType = Compute.getType(term.left, preparedScope);
+        const leftType = Compute.getNormalType(term.left, preparedScope);
         const leftMustBePiError = leftType.type !== "pi";
         const leftMustBePiErrorNode = leftMustBePiError && (
           <ErrorTooltip>
@@ -229,7 +244,7 @@ function makeViewTerm(
             <div>detected: {viewTerm(leftType, false)}</div>
           </ErrorTooltip>
         );
-        const rightType = Compute.getType(term.right, preparedScope);
+        const rightType = Compute.getNormalType(term.right, preparedScope);
         const rightMustBeLeftFromError = leftType.type === "pi" && !Compute.isEqual(leftType.from, rightType);
         const rightMustBeLeftFromErrorNode = rightMustBeLeftFromError && leftType.type === "pi" && (
           <ErrorTooltip>
@@ -242,7 +257,7 @@ function makeViewTerm(
           <span style={{ backgroundColor }}>
             {parens("(")}
             {leftMustBePiErrorNode}
-            {viewTerm(term.left, term.left.type !== "application" || leftMustBePiError)}
+            {viewTerm(term.left, term.left.type !== "application")}
             {punctuation(" ")}
             {rightMustBeLeftFromErrorNode}
             {viewTerm(term.right, true)}
@@ -251,7 +266,7 @@ function makeViewTerm(
         );
       }
       case "pi": {
-        const fromType = Compute.getType(term.from, preparedScope);
+        const fromType = Compute.getNormalType(term.from, preparedScope);
         const fromMustBeTypeError = fromType.type !== "type";
         const fromMustBeTypeErrorNode = fromMustBeTypeError && (
           <ErrorTooltip>
@@ -259,7 +274,7 @@ function makeViewTerm(
             <div>detected: {viewTerm(fromType, false)}</div>
           </ErrorTooltip>
         );
-        const toType = Compute.getType(term.to, preparedScope);
+        const toType = Compute.getNormalType(term.to, preparedScope);
         const toMustBeTypeError = toType.type !== "type";
         const toMustBeTypeErrorNode = toMustBeTypeError && (
           <ErrorTooltip>
@@ -276,24 +291,24 @@ function makeViewTerm(
                 {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
                 {punctuation(" : ")}
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, fromMustBeTypeError)}
+                {viewTerm(term.from, false)}
                 {punctuation(")")}
               </>
             ) : (
               <>
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, fromMustBeTypeError)}
+                {viewTerm(term.from, false)}
               </>
             )}
             {punctuation(" -> ")}
             {toMustBeTypeErrorNode}
-            {viewTerm(term.to, toMustBeTypeError)}
+            {viewTerm(term.to, false)}
             {parens(")")}
           </span>
         );
       }
       case "lambda": {
-        const fromType = Compute.getType(term.from, preparedScope);
+        const fromType = Compute.getNormalType(term.from, preparedScope);
         const fromMustBeTypeError = fromType.type !== "type";
         const fromMustBeTypeErrorNode = fromMustBeTypeError && (
           <ErrorTooltip>
@@ -308,7 +323,7 @@ function makeViewTerm(
             {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
             {punctuation(" : ")}
             {fromMustBeTypeErrorNode}
-            {viewTerm(term.from, fromMustBeTypeError)}
+            {viewTerm(term.from, false)}
             {punctuation(")")}
             {punctuation(" => ")}
             {viewTerm(term.body, false)}
