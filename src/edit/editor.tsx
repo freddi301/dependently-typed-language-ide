@@ -25,14 +25,13 @@ export function EditorComponent() {
   const preparedScope = Compute.prepareScope(source);
   const suggestions = getSuggestions(state);
   const viewTerm = makeViewTerm(cursor, dispatch, suggestions, preparedScope);
-  const viewDerivedTerm = (term: Compute.Term) => viewTerm(Compute.unprepareTerm(term), false, null);
   const possibleKeyboardOperations = getPossibleKeyboardOperations(state);
-  const prepatredTermUnderCursor: Compute.Term | null =
+  const preparedTermUnderCursor: Compute.Term | null =
     cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
-  const type = tryIt(() => prepatredTermUnderCursor && Compute.getType(prepatredTermUnderCursor, preparedScope));
-  const value = tryIt(() => prepatredTermUnderCursor && Compute.getValue(prepatredTermUnderCursor, preparedScope));
-  const isShowable = (entry: string, level: "type" | "value", term: Source.Term) =>
-    !Source.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
+  const type = preparedTermUnderCursor && Compute.getType(preparedTermUnderCursor, preparedScope);
+  const value = preparedTermUnderCursor && Compute.getValue(preparedTermUnderCursor, preparedScope);
+  const isShowable = (entry: string, level: "type" | "value", term: Compute.Term) =>
+    !Compute.isNullTerm(term) || (cursor.type === "entry" && cursor.path.entry === entry && cursor.path.level === level);
   return (
     <div
       style={{
@@ -48,17 +47,18 @@ export function EditorComponent() {
     >
       <div style={{ gridColumn: 1, position: "relative", overflow: "overlay" }}>
         <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch 0" }}>
-          {Object.entries(source).map(([entry, { type, value }]) => {
-            const prepared = preparedScope[entry];
-            if (!prepared) throw new Error();
-            const annotatedType = tryIt(() => Compute.getValue(prepared.type, preparedScope));
-            const derivedType = tryIt(() => Compute.getType(prepared.value, preparedScope));
-            const hasError =
-              annotatedType &&
-              derivedType &&
-              !Compute.isEqual(annotatedType, derivedType) &&
-              !Source.isNullTerm(type) &&
-              !Source.isNullTerm(value);
+          {Object.entries(preparedScope).map(([entry, { type, value }]) => {
+            const annotatedType = Compute.getValue(type, preparedScope);
+            const derivedType = Compute.getType(value, preparedScope);
+            const annotatedTypeError =
+              !Compute.isNullTerm(type) && !Compute.isNullTerm(value) && !Compute.isEqual(annotatedType, derivedType);
+            const annotatedTypeErrorNode = annotatedTypeError && (
+              <ErrorTooltip>
+                <div style={{ color: colors.red }}>wrong value type</div>
+                <div>expected: {viewTerm(annotatedType, false)}</div>
+                <div>detected: {viewTerm(derivedType, false)}</div>
+              </ErrorTooltip>
+            );
             return (
               <React.Fragment key={entry}>
                 <div style={{ padding: "0 1ch" }}>
@@ -66,23 +66,17 @@ export function EditorComponent() {
                   {type && isShowable(entry, "type", type) && (
                     <>
                       <span style={{ color: colors.purple }}> : </span>
-                      {viewTerm(type, false, { entry, level: "type", relative: [] })}
+                      {viewTerm(type, false)}
                     </>
                   )}
                   {value && isShowable(entry, "value", value) && (
                     <>
                       <span style={{ color: colors.purple }}> = </span>
-                      {viewTerm(value, false, { entry, level: "value", relative: [] })}
+                      {annotatedTypeErrorNode}
+                      {viewTerm(value, false)}
                     </>
                   )}
                 </div>
-                {hasError && annotatedType && derivedType && (
-                  <div style={{ backgroundColor: colors.backgroundDark, padding: "0 1ch" }}>
-                    <div style={{ color: colors.red }}>type error</div>
-                    <div>expected: {viewDerivedTerm(annotatedType)}</div>
-                    <div>detected: {viewDerivedTerm(derivedType)}</div>
-                  </div>
-                )}
               </React.Fragment>
             );
           })}
@@ -96,8 +90,8 @@ export function EditorComponent() {
       <div style={{ gridColumn: 2 }}>
         <Infos
           infos={{
-            "computed type": type && viewDerivedTerm(type),
-            "computed value": value && viewDerivedTerm(value),
+            "computed type": type && viewTerm(type, false),
+            "computed value": value && viewTerm(value, false),
             intellisense: suggestions.map((suggestion, index) => {
               const isSelected = index === state.suggestionIndex;
               return (
@@ -152,12 +146,10 @@ function makeViewTerm(
   suggestions: Array<string>,
   preparedScope: Compute.Scope
 ) {
-  function viewTerm(term: Source.Term, showParens: boolean, path: Path.Absolute | null) {
-    const preparedTerm: Compute.Term | null = path && (Source.fluentScope(preparedScope as any).get(path).term as any);
-    const hasCursor = cursor.type === "entry" && path ? Path.fluent(path).isEqual(cursor.path) : false;
+  function viewTerm(term: Compute.Term, showParens: boolean) {
+    const hasCursor = cursor.type === "entry" && term.path ? Path.fluent(term.path).isEqual(cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
-    const cursorHere = () => path && dispatch({ type: "cursor", payload: path });
-    const childPath = (leaf: string) => path && Path.fluent(path).child(leaf).path;
+    const cursorHere = () => term.path && dispatch({ type: "cursor", payload: term.path });
     const parens = (symbol: string) =>
       showParens && (
         <span style={{ color: colors.purple }} onClick={cursorHere}>
@@ -177,12 +169,21 @@ function makeViewTerm(
           </span>
         );
       }
+      case "free":
       case "reference": {
         if (hasCursor && cursor.type === "entry") {
+          const showSuggestion = suggestions[0] && suggestions[0] !== term.identifier;
           return (
             <>
               <EmulatedInput state={{ text: term.identifier, cursor: cursor.cursor }} />
-              <span style={{ color: colors.gray }}> {suggestions[0]}</span>
+              {showSuggestion && (
+                <>
+                  {" "}
+                  <span style={{ backgroundColor: colors.backgroundDark, border: `1px solid ${colors.green}`, padding: "0 1ch" }}>
+                    {suggestions[0]}
+                  </span>
+                </>
+              )}
             </>
           );
         }
@@ -199,21 +200,52 @@ function makeViewTerm(
         );
       }
       case "application": {
-        // left must have type pi
-        // right must have type left.from
+        const leftType = Compute.getType(term.left, preparedScope);
+        const leftMustBePiError = leftType.type !== "pi";
+        const leftMustBePiErrorNode = leftMustBePiError && (
+          <ErrorTooltip>
+            <div style={{ color: colors.red }}>must be a function</div>
+            <div>detected: {viewTerm(leftType, false)}</div>
+          </ErrorTooltip>
+        );
+        const rightType = Compute.getType(term.right, preparedScope);
+        const rightMustBeLeftFromError = leftType.type === "pi" && !Compute.isEqual(leftType.from, rightType);
+        const rightMustBeLeftFromErrorNode = rightMustBeLeftFromError && leftType.type === "pi" && (
+          <ErrorTooltip>
+            <div style={{ color: colors.red }}>wrong argument type</div>
+            <div>expected: {viewTerm(leftType.from, false)}</div>
+            <div>detected: {viewTerm(rightType, false)}</div>
+          </ErrorTooltip>
+        );
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
-            {viewTerm(term.left, term.left.type !== "application", childPath("left"))}
+            {leftMustBePiErrorNode}
+            {viewTerm(term.left, term.left.type !== "application")}
             {punctuation(" ")}
-            {viewTerm(term.right, true, childPath("right"))}
+            {rightMustBeLeftFromErrorNode}
+            {viewTerm(term.right, true)}
             {parens(")")}
           </span>
         );
       }
       case "pi": {
-        // from must have type type
-        // to must have type type
+        const fromType = Compute.getType(term.from, preparedScope);
+        const fromMustBeTypeError = fromType.type !== "type";
+        const fromMustBeTypeErrorNode = fromMustBeTypeError && (
+          <ErrorTooltip>
+            <div style={{ color: colors.red }}>must be a type</div>
+            <div>detected: {viewTerm(fromType, false)}</div>
+          </ErrorTooltip>
+        );
+        const toType = Compute.getType(term.to, preparedScope);
+        const toMustBeTypeError = toType.type !== "type";
+        const toMustBeTypeErrorNode = toMustBeTypeError && (
+          <ErrorTooltip>
+            <div style={{ color: colors.red }}>must be a type</div>
+            <div>detected: {viewTerm(toType, false)}</div>
+          </ErrorTooltip>
+        );
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
@@ -222,38 +254,43 @@ function makeViewTerm(
                 {punctuation("(")}
                 {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
                 {punctuation(" : ")}
-                {viewTerm(term.from, false, childPath("from"))}
+                {fromMustBeTypeErrorNode}
+                {viewTerm(term.from, false)}
                 {punctuation(")")}
               </>
             ) : (
-              viewTerm(term.from, false, childPath("from"))
+              <>
+                {fromMustBeTypeErrorNode}
+                {viewTerm(term.from, false)}
+              </>
             )}
             {punctuation(" -> ")}
-            {viewTerm(term.to, false, childPath("to"))}
+            {toMustBeTypeErrorNode}
+            {viewTerm(term.to, false)}
             {parens(")")}
           </span>
         );
       }
       case "lambda": {
-        const fromMustBeTypeError = (() => {
-          if (preparedTerm) {
-            if (preparedTerm.type !== "lambda") throw new Error();
-            const fromType = Compute.getType(preparedTerm.from, preparedScope);
-            return fromType.type !== "type";
-          }
-          return false;
-        })();
+        const fromType = Compute.getType(term.from, preparedScope);
+        const fromMustBeTypeError = fromType.type !== "type";
+        const fromMustBeTypeErrorNode = fromMustBeTypeError && (
+          <ErrorTooltip>
+            <div style={{ color: colors.red }}>must be a type</div>
+            <div>detected: {viewTerm(fromType, false)}</div>
+          </ErrorTooltip>
+        );
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
             {punctuation("(")}
             {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
             {punctuation(" : ")}
-            {fromMustBeTypeError && <ErrorTooltip>must be a type</ErrorTooltip>}
-            {viewTerm(term.from, false, childPath("from"))}
+            {fromMustBeTypeErrorNode}
+            {viewTerm(term.from, false)}
             {punctuation(")")}
             {punctuation(" => ")}
-            {viewTerm(term.body, false, childPath("body"))}
+            {viewTerm(term.body, false)}
             {parens(")")}
           </span>
         );
@@ -267,14 +304,18 @@ function ErrorTooltip({ children }: { children: React.ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
   return (
     <div style={{ display: "inline-block", position: "relative" }}>
-      <div style={{ color: colors.red, cursor: "pointer" }} onMouseEnter={() => setIsOpen(true)} onMouseLeave={() => setIsOpen(false)}>
+      <div
+        style={{ color: colors.red, cursor: "pointer", fontWeight: "bold" }}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+      >
         !
       </div>
       <div
         style={{
           position: "absolute",
           backgroundColor: colors.backgroundDark,
-          border: `1px solid ${colors.red}`,
+          borderTop: `2px solid ${colors.red}`,
           padding: "0 1ch",
         }}
         hidden={!isOpen}
@@ -285,13 +326,13 @@ function ErrorTooltip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function tryIt<T>(f: () => T) {
-  try {
-    return f();
-  } catch (error) {
-    return;
-  }
-}
+// function tryIt<T>(f: () => T) {
+//   try {
+//     return f();
+//   } catch (error) {
+//     return;
+//   }
+// }
 
 function Infos({ infos }: { infos: Record<string, React.ReactNode> }) {
   const [isOpenById, setIsOpenById] = useState<Record<string, boolean>>(Object.fromEntries(Object.keys(infos).map((k) => [k, true])));

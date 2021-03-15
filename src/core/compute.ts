@@ -182,8 +182,8 @@ function replace(old: string, new_: Term, term: Term): Term {
   }
 }
 
-const nullTerm: Term = { type: "free", identifier: "", typeScope: {}, path: null };
-function isNullTerm(term: Term): boolean {
+export const nullTerm: Term = { type: "free", identifier: "", typeScope: {}, path: null };
+export function isNullTerm(term: Term): boolean {
   return term.type === "free" && term.identifier === "";
 }
 
