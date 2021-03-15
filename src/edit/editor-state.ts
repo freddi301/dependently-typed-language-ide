@@ -9,6 +9,7 @@ import * as History from "./history-state";
 export type State = {
   history: History.State<SourceState>;
   suggestionIndex: number | null;
+  clipboard: Source.Term | null;
 };
 
 export type Action =
@@ -32,6 +33,7 @@ export const emptyState: State = {
     ],
   },
   suggestionIndex: null,
+  clipboard: null,
 };
 
 export function reducer(state: State, action: Action): State {
@@ -41,12 +43,14 @@ export function reducer(state: State, action: Action): State {
     return {
       history: do_({ source: action.payload, cursor: { type: "top-empty", input: { text: "", cursor: 0 } } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (action.type === "cursor") {
     return {
       history: do_({ source, cursor: { type: "entry", path: action.payload, cursor: 0 } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (action.type === "keydown") {
@@ -64,6 +68,7 @@ export function reducer(state: State, action: Action): State {
         cursor: { type: "top-empty", input },
       }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (action.type === "keydown" && cursor.type === "entry") {
@@ -77,6 +82,7 @@ export function reducer(state: State, action: Action): State {
           cursor: { ...cursor, cursor: input.cursor },
         }),
         suggestionIndex: null,
+        clipboard: state.clipboard,
       };
     };
     switch (term.type) {

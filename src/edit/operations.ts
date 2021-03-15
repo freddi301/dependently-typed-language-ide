@@ -31,6 +31,7 @@ const addEntry: Operation = (state) => {
   return {
     history: do_({ source: Source.fluentScope(source).add(entry).scope, cursor: { type: "top-empty", input: emptyInput } }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -53,6 +54,7 @@ const turnIntoType: Operation = (state) => {
       cursor,
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -63,6 +65,7 @@ const resetCursor: Operation = (state) => {
   return {
     history: do_({ source, cursor: { type: "top-empty", input: emptyInput } }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -81,6 +84,7 @@ function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
         cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
       }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   };
 }
@@ -100,6 +104,7 @@ function makeMoveCursorTo(level: "type" | "value"): Operation {
     return {
       history: do_({ source, cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   };
 }
@@ -122,6 +127,7 @@ const turnIntoPiFromThenCursorToTo: Operation = (state) => {
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("to").path },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -142,6 +148,7 @@ const turnIntoPiHeadThenCursorToFrom: Operation = (state) => {
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -162,6 +169,7 @@ const turnIntoLambdaHeadThenCursorToFrom: Operation = (state) => {
       cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -183,6 +191,7 @@ const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
         cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
       }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   return {
@@ -195,6 +204,7 @@ const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
       cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -205,7 +215,11 @@ const navigateUp: Operation = (state) => {
   const currentPathFluent = Path.fluent(cursor.path);
   const parentPathFluent = currentPathFluent.parent();
   if (parentPathFluent) {
-    return { history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.path } }), suggestionIndex: null };
+    return {
+      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.path } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
   }
   throw new Error();
 };
@@ -221,18 +235,21 @@ const navigateDown: Operation = (state) => {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("left").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (currentFluent.term.type === "pi") {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (currentFluent.term.type === "lambda") {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   throw new Error();
@@ -255,12 +272,14 @@ const navigateLeft: Operation = (state) => {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("left").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (parentFluent.term.type === "pi" && currentPathFluent.last() === "to") {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("from").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   throw new Error();
@@ -282,18 +301,21 @@ const navigateRight: Operation = (state) => {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("right").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (parentFluent.term.type === "pi" && currentPathFluent.last() === "from") {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   if (parentFluent.term.type === "lambda" && currentPathFluent.last() === "from") {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("body").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   throw new Error();
@@ -308,9 +330,11 @@ const replaceWithEmptyReference: Operation = (state) => {
   const currentFluent = sourceFluent.get(currentPathFluent.path);
   if (currentFluent.term.type === "reference") throw new Error();
   if (currentFluent.term.type === "pi" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
+  if (currentFluent.term.type === "lambda" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
   return {
     history: do_({ source: Source.fluentScope(source).set(cursor.path, emptyReference).scope, cursor: { ...cursor, cursor: 0 } }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -333,6 +357,7 @@ const navigateIntoRight: Operation = (state) => {
     return {
       history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
       suggestionIndex: null,
+      clipboard: state.clipboard,
     };
   }
   throw new Error();
@@ -343,6 +368,7 @@ const undo: Operation = (state) => {
   return {
     history: History.reducer(state.history, { type: "undo" }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -351,6 +377,7 @@ const redo: Operation = (state) => {
   return {
     history: History.reducer(state.history, { type: "redo" }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -361,6 +388,7 @@ const suggestionStart: Operation = (state) => {
   return {
     history: state.history,
     suggestionIndex: 0,
+    clipboard: state.clipboard,
   };
 };
 
@@ -369,6 +397,7 @@ const suggestionStop: Operation = (state) => {
   return {
     history: state.history,
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -378,12 +407,14 @@ const suggestionUp: Operation = (state) => {
     return {
       history: state.history,
       suggestionIndex: state.suggestionIndex - 1,
+      clipboard: state.clipboard,
     };
   }
   const suggestions = getSuggestions(state);
   return {
     history: state.history,
     suggestionIndex: suggestions.length - 1,
+    clipboard: state.clipboard,
   };
 };
 
@@ -394,10 +425,12 @@ const suggestionDown: Operation = (state) => {
     return {
       history: state.history,
       suggestionIndex: 0,
+      clipboard: state.clipboard,
     };
   return {
     history: state.history,
     suggestionIndex: state.suggestionIndex + 1,
+    clipboard: state.clipboard,
   };
 };
 
@@ -418,6 +451,7 @@ const suggestionChoose: Operation = (state) => {
       cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -437,6 +471,32 @@ const suggestionQuickChooseFirst: Operation = (state) => {
       cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
+    clipboard: state.clipboard,
+  };
+};
+
+const copy: Operation = (state) => {
+  const { source, cursor } = History.getCurrent(state.history);
+  if (cursor.type !== "entry") return state;
+  const sourceFluent = Source.fluentScope(source);
+  const currentPathFluent = Path.fluent(cursor.path);
+  const currentFluent = sourceFluent.get(currentPathFluent.path);
+  return {
+    history: state.history,
+    suggestionIndex: null,
+    clipboard: currentFluent.term,
+  };
+};
+
+const paste: Operation = (state) => {
+  if (!state.clipboard) throw new Error();
+  const { source, cursor } = History.getCurrent(state.history);
+  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
+  if (cursor.type !== "entry") return state;
+  return {
+    history: do_({ source: Source.fluentScope(source).set(cursor.path, state.clipboard).scope, cursor: { ...cursor, cursor: 0 } }),
+    suggestionIndex: null,
+    clipboard: state.clipboard,
   };
 };
 
@@ -466,4 +526,6 @@ export const operations = {
   suggestionDown,
   suggestionChoose,
   suggestionQuickChooseFirst,
+  paste,
+  copy,
 };

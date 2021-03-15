@@ -100,7 +100,7 @@
           "left": { "type": "reference", "identifier": "first" },
           "right": { "type": "reference", "identifier": "red" }
         },
-        "right": { "type": "reference", "identifier": "blue" }
+        "right": { "type": "reference", "identifier": "red" }
       }
     },
     "value": {
@@ -136,6 +136,188 @@
         "head": "y",
         "from": { "type": "reference", "identifier": "color" },
         "body": { "type": "reference", "identifier": "x" }
+      }
+    }
+  },
+  "i2": {
+    "type": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": {
+          "type": "application",
+          "left": { "type": "reference", "identifier": "identity" },
+          "right": { "type": "reference", "identifier": "color" }
+        },
+        "right": { "type": "reference", "identifier": "red" }
+      },
+      "right": { "type": "reference", "identifier": "red" }
+    },
+    "value": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": { "type": "reference", "identifier": "reflection" },
+        "right": { "type": "reference", "identifier": "color" }
+      },
+      "right": { "type": "reference", "identifier": "red" }
+    }
+  },
+  "x33": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "application",
+      "left": {
+        "type": "application",
+        "left": { "type": "reference", "identifier": "some" },
+        "right": { "type": "reference", "identifier": "boolean" }
+      },
+      "right": { "type": "reference", "identifier": "" }
+    }
+  },
+  "x44": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "lambda",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "body": {
+        "type": "lambda",
+        "head": "a",
+        "from": { "type": "reference", "identifier": "t" },
+        "body": {
+          "type": "lambda",
+          "head": "b",
+          "from": { "type": "reference", "identifier": "t" },
+          "body": {
+            "type": "lambda",
+            "head": "p",
+            "from": {
+              "type": "application",
+              "left": {
+                "type": "application",
+                "left": {
+                  "type": "application",
+                  "left": { "type": "reference", "identifier": "identity" },
+                  "right": { "type": "reference", "identifier": "t" }
+                },
+                "right": { "type": "reference", "identifier": "a" }
+              },
+              "right": { "type": "reference", "identifier": "b" }
+            },
+            "body": {
+              "type": "application",
+              "left": {
+                "type": "lambda",
+                "head": "j",
+                "from": {
+                  "type": "application",
+                  "left": {
+                    "type": "application",
+                    "left": {
+                      "type": "application",
+                      "left": { "type": "reference", "identifier": "identity" },
+                      "right": { "type": "reference", "identifier": "t" }
+                    },
+                    "right": { "type": "reference", "identifier": "a" }
+                  },
+                  "right": { "type": "reference", "identifier": "b" }
+                },
+                "body": { "type": "reference", "identifier": "j" }
+              },
+              "right": { "type": "reference", "identifier": "" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "identity2": {
+    "type": {
+      "type": "pi",
+      "head": "x",
+      "from": { "type": "reference", "identifier": "t" },
+      "to": { "type": "pi", "head": "y", "from": { "type": "reference", "identifier": "t" }, "to": { "type": "type", "universe": 1 } }
+    },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "list": {
+    "type": { "type": "pi", "head": "", "from": { "type": "type", "universe": 1 }, "to": { "type": "type", "universe": 1 } },
+    "value": { "type": "reference", "identifier": "" }
+  },
+  "nil": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "lambda",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "body": {
+        "type": "lambda",
+        "head": "r",
+        "from": { "type": "type", "universe": 1 },
+        "body": {
+          "type": "lambda",
+          "head": "onNil",
+          "from": { "type": "reference", "identifier": "r" },
+          "body": {
+            "type": "lambda",
+            "head": "onCons",
+            "from": {
+              "type": "pi",
+              "head": "",
+              "from": { "type": "reference", "identifier": "t" },
+              "to": { "type": "reference", "identifier": "r" }
+            },
+            "body": { "type": "reference", "identifier": "onNil" }
+          }
+        }
+      }
+    }
+  },
+  "cons": {
+    "type": { "type": "reference", "identifier": "" },
+    "value": {
+      "type": "lambda",
+      "head": "t",
+      "from": { "type": "type", "universe": 1 },
+      "body": {
+        "type": "lambda",
+        "head": "head",
+        "from": { "type": "reference", "identifier": "t" },
+        "body": {
+          "type": "lambda",
+          "head": "tail",
+          "from": { "type": "reference", "identifier": "" },
+          "body": {
+            "type": "lambda",
+            "head": "r",
+            "from": { "type": "type", "universe": 1 },
+            "body": {
+              "type": "lambda",
+              "head": "onNil",
+              "from": { "type": "reference", "identifier": "r" },
+              "body": {
+                "type": "lambda",
+                "head": "onCons",
+                "from": {
+                  "type": "pi",
+                  "head": "",
+                  "from": { "type": "reference", "identifier": "t" },
+                  "to": { "type": "reference", "identifier": "r" }
+                },
+                "body": {
+                  "type": "application",
+                  "left": {
+                    "type": "application",
+                    "left": { "type": "reference", "identifier": "onCons" },
+                    "right": { "type": "reference", "identifier": "head" }
+                  },
+                  "right": { "type": "reference", "identifier": "tail" }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }

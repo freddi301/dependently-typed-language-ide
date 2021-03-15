@@ -42,7 +42,7 @@ export function EditorComponent() {
         color: colors.white,
         whiteSpace: "pre",
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "1fr 500px",
       }}
     >
       <div style={{ gridColumn: 1, position: "relative", overflow: "overlay" }}>
@@ -257,7 +257,7 @@ function makeViewTerm(
           <span style={{ backgroundColor }}>
             {parens("(")}
             {leftMustBePiErrorNode}
-            {viewTerm(term.left, term.left.type !== "application")}
+            {viewTerm(term.left, term.left.type !== "application" || leftMustBePiError)}
             {punctuation(" ")}
             {rightMustBeLeftFromErrorNode}
             {viewTerm(term.right, true)}
@@ -288,7 +288,11 @@ function makeViewTerm(
             {term.head || hasCursor ? (
               <>
                 {punctuation("(")}
-                {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
+                {hasCursor && cursor.type === "entry" ? (
+                  <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} />
+                ) : (
+                  <span onClick={cursorHere}>{term.head}</span>
+                )}
                 {punctuation(" : ")}
                 {fromMustBeTypeErrorNode}
                 {viewTerm(term.from, false)}
@@ -320,7 +324,11 @@ function makeViewTerm(
           <span style={{ backgroundColor }}>
             {parens("(")}
             {punctuation("(")}
-            {hasCursor && cursor.type === "entry" ? <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} /> : term.head}
+            {hasCursor && cursor.type === "entry" ? (
+              <EmulatedInput state={{ text: term.head, cursor: cursor.cursor }} />
+            ) : (
+              <span onClick={cursorHere}>{term.head}</span>
+            )}
             {punctuation(" : ")}
             {fromMustBeTypeErrorNode}
             {viewTerm(term.from, false)}

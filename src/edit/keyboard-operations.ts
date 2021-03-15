@@ -26,6 +26,8 @@ export const keyboardOperations: {
   "ctrl-z": { undo: null },
   "ctrl-shift-z": { redo: null },
   "ctrl- ": { suggestionStart: null },
+  "ctrl-v": { paste: null },
+  "ctrl-c": { copy: null },
 };
 
 export function getOperationForKeyCombination(
