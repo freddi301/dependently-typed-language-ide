@@ -1,11 +1,6 @@
-export type Relative = Array<string>;
-export type Absolute = {
-  entry: string;
-  level: "type" | "value";
-  relative: Relative;
-};
+export type Path = Array<string>;
 
-function isEqualRelativePath(a: Relative, b: Relative): boolean {
+export function equals(a: Path, b: Path): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;
@@ -13,26 +8,15 @@ function isEqualRelativePath(a: Relative, b: Relative): boolean {
   return true;
 }
 
-function isEqualAbsolutePath(a: Absolute, b: Absolute): boolean {
-  return a.entry === b.entry && a.level === b.level && isEqualRelativePath(a.relative, b.relative);
+export function last(path: Path): string | undefined {
+  return path[path.length - 1];
 }
 
-export function fluent(absolute: Absolute) {
-  const { entry, level, relative } = absolute;
-  return {
-    path: absolute,
-    last() {
-      return relative[relative.length - 1];
-    },
-    isEqual(other: Absolute) {
-      return isEqualAbsolutePath(absolute, other);
-    },
-    child(leaf: string) {
-      return fluent({ entry, level, relative: [...relative, leaf] });
-    },
-    parent() {
-      if (relative.length === 0) return null;
-      return fluent({ entry, level, relative: relative.slice(0, -1) });
-    },
-  };
+export function child(path: Path, leaf: string): Path {
+  return [...path, leaf];
+}
+
+export function parent(path: Path): Path | undefined {
+  if (path.length === 0) return undefined;
+  return path.slice(0, -1);
 }

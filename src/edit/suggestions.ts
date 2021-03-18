@@ -1,55 +1,43 @@
 import * as Editor from "./editor-state";
-import * as History from "./history-state";
 import * as Compute from "../core/compute";
 import * as Source from "../core/source";
 import * as Path from "../core/path";
+import * as History from "./history-state";
 import Fuse from "fuse.js";
 
 export type Suggestion = { identifier: string; type: Compute.Term; matchesExpectedType: "yes" | "no" | "unknown" };
 
 export function getSuggestions(state: Editor.State): Array<Suggestion> {
-  const text = Editor.getTextUnderCursor(state);
   const { source, cursor } = History.getCurrent(state.history);
-  const preparedScope = Compute.prepareScope(source);
-  const preparedTermUnderCursor: Compute.Term | null =
-    cursor.type === "entry" && (Source.fluentScope(preparedScope as any).get(cursor.path).term as any);
-  if (!preparedTermUnderCursor) return [];
-  const inScope = Object.entries(preparedTermUnderCursor.typeScope).map(
+  const underCursor = Source.get(source, cursor.path);
+  const textUnderCursor = (underCursor && underCursor.type === "reference" && underCursor.identifier) || null;
+  const prepared = Compute.prepare(source, {}, []);
+  const preparedUnderCursor: Compute.Term = Source.get(prepared as any, cursor.path) as any;
+  const inScope = Object.entries(preparedUnderCursor.scope).map(
     ([identifier, type]): Suggestion => {
-      return { identifier, type: Compute.getNormalValue(type, preparedScope), matchesExpectedType: "unknown" };
+      return { identifier, type: Compute.getNormalValue(type), matchesExpectedType: "unknown" };
     }
   );
-  const entries = Object.entries(preparedScope).map(
-    ([entry, { type }]): Suggestion => {
-      return {
-        identifier: entry,
-        type: Compute.getNormalValue(type, preparedScope),
-        matchesExpectedType: "unknown",
-      };
-    }
-  ); // TODO filter out shadowed in scope
-  const all = [...inScope, ...entries];
-  const byFuzzyText = text ? new Fuse(all, { keys: ["identifier"] }).search(text).map(({ item }) => item) : [];
+  const all = inScope;
+  const byFuzzyText = textUnderCursor ? new Fuse(all, { keys: ["identifier"] }).search(textUnderCursor).map(({ item }) => item) : [];
   const other = all.filter((suggestion) => !byFuzzyText.includes(suggestion));
   const byFuzzyTextThenOthers = [...byFuzzyText, ...other];
-  if (cursor.type === "entry") {
-    const leafPath = Path.fluent(cursor.path).last();
-    const parentPath = Path.fluent(cursor.path).parent()?.path;
-    const parentTerm: Compute.Term | null = parentPath && (Source.fluentScope(preparedScope as any).get(parentPath).term as any);
-    if (parentTerm?.type === "application" && leafPath === "right") {
-      const parentLeftType = Compute.getNormalType(parentTerm.left, preparedScope);
-      if (parentLeftType.type === "pi") {
-        const expectedType = parentLeftType.from;
-        const byExpectedType: Array<Suggestion> = byFuzzyTextThenOthers
-          .filter(({ type }) => Compute.isEqual(type, expectedType))
-          .map((suggestion) => ({ ...suggestion, matchesExpectedType: "yes" }));
-        const other: Array<Suggestion> = byFuzzyTextThenOthers
-          .filter((suggestion) => !byExpectedType.includes(suggestion))
-          .map((suggestion) => ({ ...suggestion, matchesExpectedType: "no" }));
-        return [...byExpectedType, ...other];
-      }
+  const leafPath = Path.last(cursor.path);
+  const parentPath = Path.parent(cursor.path);
+  const parentTerm: Compute.Term | null = parentPath && (Source.get(prepared as any, parentPath) as any);
+  // TODO for let
+  if (parentTerm?.type === "application" && leafPath === "right") {
+    const parentLeftType = Compute.getNormalType(parentTerm.left);
+    if (parentLeftType?.type === "pi") {
+      const expectedType = parentLeftType.from;
+      const byExpectedType: Array<Suggestion> = byFuzzyTextThenOthers
+        .filter(({ type }) => Compute.equals(type, expectedType))
+        .map((suggestion) => ({ ...suggestion, matchesExpectedType: "yes" }));
+      const other: Array<Suggestion> = byFuzzyTextThenOthers
+        .filter((suggestion) => !byExpectedType.includes(suggestion))
+        .map((suggestion) => ({ ...suggestion, matchesExpectedType: "no" }));
+      return [...byExpectedType, ...other];
     }
   }
-
   return byFuzzyTextThenOthers;
 }

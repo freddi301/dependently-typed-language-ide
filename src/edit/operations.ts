@@ -1,16 +1,12 @@
-import { SourceState, State } from "./editor-state";
-import { EmulatedInputState } from "./emulated-input";
+import * as Editor from "./editor-state";
 import * as Source from "../core/source";
 import * as Path from "../core/path";
-import * as History from "./history-state";
-import { getSuggestions } from "./suggestions";
+import { EmulatedInputState } from "./emulated-input";
 
 // TODO should not use throw
-type Operation = (state: State) => State;
+type Operation = (state: Editor.OnEditor) => Editor.State;
 
 const emptyReference: Source.Term = { type: "reference", identifier: "" };
-
-const emptyInput: EmulatedInputState = { text: "", cursor: 0 };
 
 function isCursorAtEnd({ text, cursor }: EmulatedInputState) {
   return cursor === text.length;
@@ -20,26 +16,8 @@ function isCursorAtStart({ cursor }: EmulatedInputState) {
   return cursor === 0;
 }
 
-const addEntry: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "top-empty") throw new Error();
-  const entry = cursor.input.text;
-  if (!entry) throw new Error();
-  if (source[entry]) throw new Error();
-  if (!isCursorAtEnd(cursor.input)) throw new Error();
-  return {
-    history: do_({ source: Source.fluentScope(source).add(entry).scope, cursor: { type: "top-empty", input: emptyInput } }),
-    suggestionIndex: null,
-    clipboard: state.clipboard,
-  };
-};
-
-const turnIntoType: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const term = Source.fluentScope(source).get(cursor.path).term;
+const turnIntoType: Operation = ({ state, source, cursor, do_, current: underCursor }) => {
+  const term = underCursor;
   if (term.type !== "reference") throw new Error();
   if (!isCursorAtEnd({ text: term.identifier, cursor: cursor.cursor })) throw new Error();
   const match = term.identifier.match(/^(type)([0-9]+)?$/);
@@ -47,10 +25,10 @@ const turnIntoType: Operation = (state) => {
   const universe = Number(match[2]) || 1;
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "type",
         universe,
-      }).scope,
+      }),
       cursor,
     }),
     suggestionIndex: null,
@@ -58,137 +36,96 @@ const turnIntoType: Operation = (state) => {
   };
 };
 
-const resetCursor: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type === "top-empty") throw new Error();
+const resetCursor: Operation = ({ state, source, do_ }) => {
   return {
-    history: do_({ source, cursor: { type: "top-empty", input: emptyInput } }),
+    history: do_({ source, cursor: Editor.rootCursor }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-function makeAddEntryThenCursorTo(level: "type" | "value"): Operation {
-  return (state) => {
-    const { source, cursor } = History.getCurrent(state.history);
-    const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-    if (cursor.type !== "top-empty") throw new Error();
-    const entry = cursor.input.text;
-    if (!entry) throw new Error();
-    if (source[entry]) throw new Error();
-    if (!isCursorAtEnd(cursor.input)) throw new Error();
-    return {
-      history: do_({
-        source: Source.fluentScope(source).add(entry).scope,
-        cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 },
-      }),
-      suggestionIndex: null,
-      clipboard: state.clipboard,
-    };
-  };
-}
-
-const addEntryThenCursorToType = makeAddEntryThenCursorTo("type");
-const addEntryThenCursorToValue = makeAddEntryThenCursorTo("value");
-
-function makeMoveCursorTo(level: "type" | "value"): Operation {
-  return (state) => {
-    const { source, cursor } = History.getCurrent(state.history);
-    const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-    if (cursor.type !== "top-empty") throw new Error();
-    const entry = cursor.input.text;
-    if (!entry) throw new Error();
-    if (!source[entry]?.[level]) throw new Error();
-    if (!isCursorAtEnd(cursor.input)) throw new Error();
-    return {
-      history: do_({ source, cursor: { type: "entry", path: { entry, level, relative: [] }, cursor: 0 } }),
-      suggestionIndex: null,
-      clipboard: state.clipboard,
-    };
-  };
-}
-
-const moveCursorToType = makeMoveCursorTo("type");
-const moveCursorToValue = makeMoveCursorTo("value");
-
-const turnIntoPiFromThenCursorToTo: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
+const turnIntoPiFromThenCursorToTo: Operation = ({ state, source, cursor, do_ }) => {
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "pi",
         head: "",
-        from: Source.fluentScope(source).get(cursor.path).term,
+        from: Source.get(source, cursor.path),
         to: emptyReference,
-      }).scope,
-      cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("to").path },
+      }),
+      cursor: { cursor: 0, path: Path.child(cursor.path, "to") },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const turnIntoPiHeadThenCursorToFrom: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const term = Source.fluentScope(source).get(cursor.path).term;
+const turnIntoPiHeadThenCursorToFrom: Operation = ({ state, source, cursor, do_, current: underCursor }) => {
+  const term = underCursor;
   if (term.type !== "reference") throw new Error();
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "pi",
         head: term.identifier,
         from: emptyReference,
         to: emptyReference,
-      }).scope,
-      cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
+      }),
+      cursor: { cursor: 0, path: Path.child(cursor.path, "from") },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const turnIntoLambdaHeadThenCursorToFrom: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const term = Source.fluentScope(source).get(cursor.path).term;
+const turnIntoLambdaHeadThenCursorToFrom: Operation = ({ state, source, cursor, do_, current: underCursor }) => {
+  const term = underCursor;
   if (term.type !== "reference") throw new Error();
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "lambda",
         head: term.identifier,
         from: emptyReference,
         body: emptyReference,
-      }).scope,
-      cursor: { type: "entry", cursor: 0, path: Path.fluent(cursor.path).child("from").path },
+      }),
+      cursor: { cursor: 0, path: Path.child(cursor.path, "from") },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  if (currentFluent.term.type === "reference" && isCursorAtEnd({ text: currentFluent.term.identifier, cursor: cursor.cursor })) {
+const turnIntoLetHeadThenCursorToFrom: Operation = ({ state, source, cursor, do_, current: underCursor }) => {
+  const term = underCursor;
+  if (term.type !== "reference") throw new Error();
+  return {
+    history: do_({
+      source: Source.set(source, cursor.path, {
+        type: "let",
+        head: term.identifier,
+        from: emptyReference,
+        left: emptyReference,
+        right: emptyReference,
+      }),
+      cursor: { cursor: 0, path: Path.child(cursor.path, "from") },
+    }),
+    suggestionIndex: null,
+    clipboard: state.clipboard,
+  };
+};
+
+const turnIntoApplicationLeftThenCursorToRight: Operation = ({ state, source, cursor, do_, current }) => {
+  const childPath = (leaf: string) => Path.child(cursor.path, leaf);
+  if (current.type === "reference" && isCursorAtEnd({ text: current.identifier, cursor: cursor.cursor })) {
     return {
       history: do_({
-        source: Source.fluentScope(source).set(cursor.path, {
+        source: Source.set(source, cursor.path, {
           type: "application",
-          left: currentFluent.term,
+          left: current,
           right: emptyReference,
-        }).scope,
-        cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
+        }),
+        cursor: { cursor: 0, path: childPath("right") },
       }),
       suggestionIndex: null,
       clipboard: state.clipboard,
@@ -196,27 +133,23 @@ const turnIntoApplicationLeftThenCursorToRight: Operation = (state) => {
   }
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "application",
-        left: currentFluent.term,
+        left: current,
         right: emptyReference,
-      }).scope,
-      cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("right").path },
+      }),
+      cursor: { cursor: 0, path: childPath("right") },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const navigateUp: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const currentPathFluent = Path.fluent(cursor.path);
-  const parentPathFluent = currentPathFluent.parent();
-  if (parentPathFluent) {
+const navigateUp: Operation = ({ state, source, do_, parentPath }) => {
+  console.log(parentPath);
+  if (parentPath) {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.path } }),
+      history: do_({ source, cursor: { cursor: 0, path: parentPath } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
@@ -224,60 +157,32 @@ const navigateUp: Operation = (state) => {
   throw new Error();
 };
 
-const navigateDown: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  if (currentFluent.term.type === "application") {
+const navigateDown: Operation = ({ state, source, cursor, do_, current }) => {
+  const childPath = (leaf: string) => Path.child(cursor.path, leaf);
+  if (current.type === "application") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("left").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: childPath("left") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
   }
-  if (currentFluent.term.type === "pi") {
+  if (current.type === "pi") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: childPath("from") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
   }
-  if (currentFluent.term.type === "lambda") {
+  if (current.type === "lambda") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: currentPathFluent.child("from").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: childPath("from") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
   }
-  throw new Error();
-};
-
-const navigateLeft: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  const parentPathFluent = currentPathFluent.parent();
-  const parentFluent = parentPathFluent && sourceFluent.get(parentPathFluent.path);
-  if (!parentFluent || !parentPathFluent) throw new Error();
-  if (currentFluent.term.type === "reference" && !isCursorAtStart({ text: currentFluent.term.identifier, cursor: cursor.cursor }))
-    throw new Error();
-  if (currentFluent.term.type === "pi" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
-  if (parentFluent.term.type === "application" && currentPathFluent.last() === "right") {
+  if (current.type === "let") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("left").path } }),
-      suggestionIndex: null,
-      clipboard: state.clipboard,
-    };
-  }
-  if (parentFluent.term.type === "pi" && currentPathFluent.last() === "to") {
-    return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("from").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: childPath("from") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
@@ -285,35 +190,20 @@ const navigateLeft: Operation = (state) => {
   throw new Error();
 };
 
-const navigateRight: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  const parentPathFluent = currentPathFluent.parent();
-  const parentFluent = parentPathFluent && sourceFluent.get(parentPathFluent.path);
-  if (!parentFluent || !parentPathFluent) throw new Error();
-  if (currentFluent.term.type === "reference" && !isCursorAtEnd({ text: currentFluent.term.identifier, cursor: cursor.cursor }))
-    throw new Error();
-  if (parentFluent.term.type === "application" && currentPathFluent.last() === "left") {
+const navigateLeft: Operation = ({ state, source, cursor, do_, current, currentPath, parent, parentPath }) => {
+  if (!parent || !parentPath) throw new Error();
+  if (current.type === "reference" && !isCursorAtStart({ text: current.identifier, cursor: cursor.cursor })) throw new Error();
+  if (current.type === "pi" && !isCursorAtStart({ text: current.head, cursor: cursor.cursor })) throw new Error();
+  if (parent.type === "application" && Path.last(currentPath) === "right") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("right").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "left") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
   }
-  if (parentFluent.term.type === "pi" && currentPathFluent.last() === "from") {
+  if (parent.type === "pi" && Path.last(currentPath) === "to") {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
-      suggestionIndex: null,
-      clipboard: state.clipboard,
-    };
-  }
-  if (parentFluent.term.type === "lambda" && currentPathFluent.last() === "from") {
-    return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("body").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "from") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
@@ -321,41 +211,69 @@ const navigateRight: Operation = (state) => {
   throw new Error();
 };
 
-const replaceWithEmptyReference: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  if (currentFluent.term.type === "reference") throw new Error();
-  if (currentFluent.term.type === "pi" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
-  if (currentFluent.term.type === "lambda" && !isCursorAtStart({ text: currentFluent.term.head, cursor: cursor.cursor })) throw new Error();
+const navigateRight: Operation = ({ state, source, cursor, do_, current, currentPath, parent, parentPath }) => {
+  if (!parent || !parentPath) throw new Error();
+  if (current.type === "reference" && !isCursorAtEnd({ text: current.identifier, cursor: cursor.cursor })) throw new Error();
+  if (parent.type === "application" && Path.last(currentPath) === "left") {
+    return {
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "right") } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
+  }
+  if (parent.type === "pi" && Path.last(currentPath) === "from") {
+    return {
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "to") } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
+  }
+  if (parent.type === "lambda" && Path.last(currentPath) === "from") {
+    return {
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "body") } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
+  }
+  if (parent.type === "let" && Path.last(currentPath) === "from") {
+    return {
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "left") } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
+  }
+  if (parent.type === "let" && Path.last(currentPath) === "left") {
+    return {
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "right") } }),
+      suggestionIndex: null,
+      clipboard: state.clipboard,
+    };
+  }
+  throw new Error();
+};
+
+const replaceWithEmptyReference: Operation = ({ state, source, cursor, do_, current }) => {
+  if (current.type === "reference") throw new Error();
+  if (current.type === "pi" && !isCursorAtStart({ text: current.head, cursor: cursor.cursor })) throw new Error();
+  if (current.type === "lambda" && !isCursorAtStart({ text: current.head, cursor: cursor.cursor })) throw new Error();
+  if (current.type === "let" && !isCursorAtStart({ text: current.head, cursor: cursor.cursor })) throw new Error();
   return {
-    history: do_({ source: Source.fluentScope(source).set(cursor.path, emptyReference).scope, cursor: { ...cursor, cursor: 0 } }),
+    history: do_({ source: Source.set(source, cursor.path, emptyReference), cursor: { ...cursor, cursor: 0 } }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const navigateIntoRight: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
-  const parentPathFluent = currentPathFluent.parent();
-  const parentFluent = parentPathFluent && sourceFluent.get(parentPathFluent.path);
+const navigateIntoRight: Operation = ({ state, source, cursor, do_, current, currentPath, parent, parentPath }) => {
   if (
-    currentFluent.term.type === "reference" &&
-    isCursorAtEnd({ text: currentFluent.term.identifier, cursor: cursor.cursor }) &&
-    parentPathFluent &&
-    parentFluent?.term.type === "pi" &&
-    currentPathFluent.last() === "from"
+    current.type === "reference" &&
+    isCursorAtEnd({ text: current.identifier, cursor: cursor.cursor }) &&
+    parentPath &&
+    parent?.type === "pi" &&
+    Path.last(currentPath) === "from"
   ) {
     return {
-      history: do_({ source, cursor: { type: "entry", cursor: 0, path: parentPathFluent.child("to").path } }),
+      history: do_({ source, cursor: { cursor: 0, path: Path.child(parentPath, "to") } }),
       suggestionIndex: null,
       clipboard: state.clipboard,
     };
@@ -363,27 +281,25 @@ const navigateIntoRight: Operation = (state) => {
   throw new Error();
 };
 
-const undo: Operation = (state) => {
-  if (!History.canUndo(state.history)) return state;
+const undo: Operation = ({ state, canUndo, undo }) => {
+  if (!canUndo) return state;
   return {
-    history: History.reducer(state.history, { type: "undo" }),
+    history: undo(),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const redo: Operation = (state) => {
-  if (!History.canRedo(state.history)) return state;
+const redo: Operation = ({ state, canRedo, redo }) => {
+  if (!canRedo) return state;
   return {
-    history: History.reducer(state.history, { type: "redo" }),
+    history: redo(),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const suggestionStart: Operation = (state) => {
-  const { cursor } = History.getCurrent(state.history);
-  if (cursor.type !== "entry") throw new Error();
+const suggestionStart: Operation = ({ state }) => {
   if (state.suggestionIndex !== null) return state;
   return {
     history: state.history,
@@ -392,7 +308,7 @@ const suggestionStart: Operation = (state) => {
   };
 };
 
-const suggestionStop: Operation = (state) => {
+const suggestionStop: Operation = ({ state }) => {
   if (state.suggestionIndex === null) throw new Error();
   return {
     history: state.history,
@@ -401,7 +317,7 @@ const suggestionStop: Operation = (state) => {
   };
 };
 
-const suggestionUp: Operation = (state) => {
+const suggestionUp: Operation = ({ state, suggestions }) => {
   if (state.suggestionIndex === null) throw new Error();
   if (state.suggestionIndex > 0) {
     return {
@@ -410,7 +326,6 @@ const suggestionUp: Operation = (state) => {
       clipboard: state.clipboard,
     };
   }
-  const suggestions = getSuggestions(state);
   return {
     history: state.history,
     suggestionIndex: suggestions.length - 1,
@@ -418,9 +333,8 @@ const suggestionUp: Operation = (state) => {
   };
 };
 
-const suggestionDown: Operation = (state) => {
+const suggestionDown: Operation = ({ state, suggestions }) => {
   if (state.suggestionIndex === null) throw new Error();
-  const suggestions = getSuggestions(state);
   if (state.suggestionIndex > suggestions.length - 2)
     return {
       history: state.history,
@@ -434,84 +348,64 @@ const suggestionDown: Operation = (state) => {
   };
 };
 
-const suggestionChoose: Operation = (state) => {
+const suggestionChoose: Operation = ({ state, do_, cursor, source, suggestions }) => {
   if (state.suggestionIndex === null) throw new Error();
-  const suggestions = getSuggestions(state);
   const suggestion = suggestions[state.suggestionIndex];
   if (!suggestion) throw new Error();
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "reference",
         identifier: suggestion.identifier,
-      }).scope,
-      cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
+      }),
+      cursor: { path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const suggestionQuickChooseFirst: Operation = (state) => {
-  const suggestions = getSuggestions(state);
+const suggestionQuickChooseFirst: Operation = ({ state, source, cursor, do_, suggestions }) => {
   const suggestion = suggestions[0];
   if (!suggestion) throw new Error();
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") throw new Error();
   return {
     history: do_({
-      source: Source.fluentScope(source).set(cursor.path, {
+      source: Source.set(source, cursor.path, {
         type: "reference",
         identifier: suggestion.identifier,
-      }).scope,
-      cursor: { type: "entry", path: cursor.path, cursor: suggestion.identifier.length },
+      }),
+      cursor: { path: cursor.path, cursor: suggestion.identifier.length },
     }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
-const copy: Operation = (state) => {
-  const { source, cursor } = History.getCurrent(state.history);
-  if (cursor.type !== "entry") return state;
-  const sourceFluent = Source.fluentScope(source);
-  const currentPathFluent = Path.fluent(cursor.path);
-  const currentFluent = sourceFluent.get(currentPathFluent.path);
+const copy: Operation = ({ state, current: underCursor }) => {
   return {
     history: state.history,
     suggestionIndex: null,
-    clipboard: currentFluent.term,
+    clipboard: underCursor,
   };
 };
 
-const paste: Operation = (state) => {
-  if (!state.clipboard) throw new Error();
-  const { source, cursor } = History.getCurrent(state.history);
-  const do_ = (payload: SourceState) => History.reducer(state.history, { type: "do", payload });
-  if (cursor.type !== "entry") return state;
+const paste: Operation = ({ state, source, cursor, do_ }) => {
+  if (!state.clipboard) return state;
   return {
-    history: do_({ source: Source.fluentScope(source).set(cursor.path, state.clipboard).scope, cursor: { ...cursor, cursor: 0 } }),
+    history: do_({ source: Source.set(source, cursor.path, state.clipboard), cursor: { ...cursor, cursor: 0 } }),
     suggestionIndex: null,
     clipboard: state.clipboard,
   };
 };
 
 export const operations = {
-  addEntry,
-  addEntryThenCursorToType,
-  addEntryThenCursorToValue,
-  moveCursorToType,
-  moveCursorToValue,
   resetCursor,
   turnIntoPiFromThenCursorToTo,
   turnIntoPiHeadThenCursorToFrom,
   turnIntoLambdaHeadThenCursorToFrom,
-  navigateIntoRight,
   turnIntoApplicationLeftThenCursorToRight,
+  turnIntoLetHeadThenCursorToFrom,
+  navigateIntoRight,
   navigateLeft,
   navigateUp,
   navigateRight,

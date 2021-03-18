@@ -1,4 +1,4 @@
-import { State } from "./editor-state";
+import * as Editor from "./editor-state";
 import {
   KeyCombination,
   getKeyCombinationFromKeyCombinationComponents,
@@ -11,12 +11,13 @@ export const keyboardOperations: {
   [K in KeyCombination]?: { [K in keyof typeof operations]?: null };
 } = {
   // operation name order is important
-  Enter: { suggestionChoose: null, turnIntoType: null, suggestionQuickChooseFirst: null, addEntry: null },
+  Enter: { suggestionChoose: null, turnIntoType: null, suggestionQuickChooseFirst: null },
   Escape: { suggestionStop: null, resetCursor: null },
-  ":": { moveCursorToType: null, addEntryThenCursorToType: null, turnIntoPiHeadThenCursorToFrom: null },
-  "=": { moveCursorToValue: null, addEntryThenCursorToValue: null, turnIntoLambdaHeadThenCursorToFrom: null },
+  ":": { turnIntoPiHeadThenCursorToFrom: null },
+  "=": { turnIntoLambdaHeadThenCursorToFrom: null },
   "-": { turnIntoPiFromThenCursorToTo: null },
   " ": { turnIntoApplicationLeftThenCursorToRight: null },
+  ";": { turnIntoLetHeadThenCursorToFrom: null },
   ArrowLeft: { navigateLeft: null },
   ArrowUp: { suggestionUp: null, navigateUp: null },
   ArrowDown: { suggestionDown: null, navigateDown: null },
@@ -32,7 +33,7 @@ export const keyboardOperations: {
 
 export function getOperationForKeyCombination(
   keyCombinationComponents: KeyCombinationComponents,
-  state: State
+  onEditor: Editor.OnEditor
 ): keyof typeof operations | undefined {
   const { key } = keyCombinationComponents;
   const keyCombination = getKeyCombinationFromKeyCombinationComponents(keyCombinationComponents);
@@ -44,17 +45,17 @@ export function getOperationForKeyCombination(
   if (!list) return;
   for (const description in list) {
     try {
-      operations[description as keyof typeof list](state);
+      operations[description as keyof typeof list](onEditor);
       return description as keyof typeof list;
     } catch (error) {}
   }
   return;
 }
 
-export function getPossibleKeyboardOperations(state: State) {
+export function getPossibleKeyboardOperations(onEditor: Editor.OnEditor) {
   return Object.entries(keyboardOperations).flatMap(([keyCombination]) => {
     const keyCombinationComponents = getKeyCombinationComponentsFromKeyCombination(keyCombination as KeyCombination);
-    const operation = getOperationForKeyCombination(keyCombinationComponents, state);
+    const operation = getOperationForKeyCombination(keyCombinationComponents, onEditor);
     if (!operation) return [];
     return { keyCombination: keyCombination as KeyCombination, operation };
   });
