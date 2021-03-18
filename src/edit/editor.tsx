@@ -42,13 +42,15 @@ export function EditorComponent() {
       }}
     >
       <div style={{ gridColumn: 1, position: "relative", overflow: "overlay" }}>
-        <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch 0" }}>{viewTerm(prepared, false)}</div>
+        <div style={{ position: "absolute", width: "100%", boxSizing: "border-box", padding: "1ch 0" }}>
+          {viewTerm(prepared, false, true)}
+        </div>
       </div>
       <div style={{ gridColumn: 2 }}>
         <Infos
           infos={{
-            "computed type": <div style={{ padding: "0 2ch" }}>{type && viewTerm(type, false)}</div>,
-            "computed value": <div style={{ padding: "0 2ch" }}>{value && viewTerm(value, false)}</div>,
+            "computed type": <div style={{ padding: "0 2ch" }}>{type && viewTerm(type, false, true)}</div>,
+            "computed value": <div style={{ padding: "0 2ch" }}>{value && viewTerm(value, false, true)}</div>,
             intellisense: (
               <div>
                 {suggestions.map(({ identifier, type, matchesExpectedType }, index) => {
@@ -71,7 +73,7 @@ export function EditorComponent() {
                       }
                       {identifier}
                       <span style={{ color: colors.purple }}> : </span>
-                      {viewTerm(type, false)}
+                      {viewTerm(type, false, true)}
                     </div>
                   );
                 })}
@@ -126,7 +128,7 @@ function makeViewTerm(
   dispatch: (action: Editor.Action) => void,
   suggestions: Array<Suggestions.Suggestion>
 ) {
-  function viewTerm(term: Compute.Term, showParens: boolean) {
+  function viewTerm(term: Compute.Term, showParens: boolean, isBlock: boolean) {
     const hasCursor = term.path ? Path.equals(term.path, cursor.path) : false;
     const backgroundColor = hasCursor ? colors.backgroundDark : "transparent";
     const cursorHere = () => term.path && dispatch({ type: "cursor", payload: term.path });
@@ -188,7 +190,7 @@ function makeViewTerm(
         const leftMustBePiErrorNode = leftMustBePiError && leftType && (
           <ErrorTooltip>
             <div style={{ color: colors.red }}>must be a function</div>
-            <div>detected: {viewTerm(leftType, false)}</div>
+            <div>detected: {viewTerm(leftType, false, false)}</div>
           </ErrorTooltip>
         );
         const rightType = Compute.getNormalType(term.right);
@@ -196,18 +198,18 @@ function makeViewTerm(
         const rightMustBeLeftFromErrorNode = rightMustBeLeftFromError && rightType && leftType && leftType.type === "pi" && (
           <ErrorTooltip>
             <div style={{ color: colors.red }}>wrong argument type</div>
-            <div>expected: {viewTerm(leftType.from, false)}</div>
-            <div>detected: {viewTerm(rightType, false)}</div>
+            <div>expected: {viewTerm(leftType.from, false, false)}</div>
+            <div>detected: {viewTerm(rightType, false, false)}</div>
           </ErrorTooltip>
         );
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
             {leftMustBePiErrorNode}
-            {viewTerm(term.left, term.left.type !== "application" || !!leftMustBePiError)}
+            {viewTerm(term.left, term.left.type !== "application" || !!leftMustBePiError, false)}
             {punctuation(" ")}
             {rightMustBeLeftFromErrorNode}
-            {viewTerm(term.right, true)}
+            {viewTerm(term.right, true, false)}
             {parens(")")}
           </span>
         );
@@ -218,7 +220,7 @@ function makeViewTerm(
         const fromMustBeTypeErrorNode = fromMustBeTypeError && fromType && (
           <ErrorTooltip>
             <div style={{ color: colors.red }}>must be a type</div>
-            <div>detected: {viewTerm(fromType, false)}</div>
+            <div>detected: {viewTerm(fromType, false, false)}</div>
           </ErrorTooltip>
         );
         const toType = Compute.getNormalType(term.to);
@@ -226,7 +228,7 @@ function makeViewTerm(
         const toMustBeTypeErrorNode = toMustBeTypeError && toType && (
           <ErrorTooltip>
             <div style={{ color: colors.red }}>must be a type</div>
-            <div>detected: {viewTerm(toType, false)}</div>
+            <div>detected: {viewTerm(toType, false, false)}</div>
           </ErrorTooltip>
         );
         return (
@@ -242,18 +244,18 @@ function makeViewTerm(
                 )}
                 {punctuation(" : ")}
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, false)}
+                {viewTerm(term.from, false, false)}
                 {punctuation(")")}
               </>
             ) : (
               <>
                 {fromMustBeTypeErrorNode}
-                {viewTerm(term.from, false)}
+                {viewTerm(term.from, false, false)}
               </>
             )}
             {punctuation(" -> ")}
             {toMustBeTypeErrorNode}
-            {viewTerm(term.to, false)}
+            {viewTerm(term.to, false, false)}
             {parens(")")}
           </span>
         );
@@ -264,7 +266,7 @@ function makeViewTerm(
         const fromMustBeTypeErrorNode = fromMustBeTypeError && fromType && (
           <ErrorTooltip>
             <div style={{ color: colors.red }}>must be a type</div>
-            <div>detected: {viewTerm(fromType, false)}</div>
+            <div>detected: {viewTerm(fromType, false, false)}</div>
           </ErrorTooltip>
         );
         return (
@@ -278,15 +280,16 @@ function makeViewTerm(
             )}
             {punctuation(" : ")}
             {fromMustBeTypeErrorNode}
-            {viewTerm(term.from, false)}
+            {viewTerm(term.from, false, false)}
             {punctuation(")")}
             {punctuation(" => ")}
-            {viewTerm(term.body, false)}
+            {viewTerm(term.body, false, false)}
             {parens(")")}
           </span>
         );
       }
       case "let": {
+        const rightIsBlock = term.right.type === "let" && isBlock;
         return (
           <span style={{ backgroundColor }}>
             {parens("(")}
@@ -296,11 +299,11 @@ function makeViewTerm(
               <span onClick={cursorHere}>{term.head}</span>
             )}
             {punctuation(" : ")}
-            {viewTerm(term.from, false)}
+            {viewTerm(term.from, term.from.type === "let", false)}
             {punctuation(" = ")}
-            {viewTerm(term.left, false)}
-            {punctuation(" ; ")}
-            {viewTerm(term.right, false)}
+            {viewTerm(term.left, term.left.type === "let", false)}
+            {rightIsBlock ? punctuation(" ;\n") : punctuation(" ; ")}
+            {viewTerm(term.right, false, rightIsBlock)}
             {parens(")")}
           </span>
         );
